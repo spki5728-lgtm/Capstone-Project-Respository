@@ -119,8 +119,7 @@ export default function ReportPage() {
             </div>
           ))}
           <p className="text-center text-sm text-stone-500 sm:col-span-2 lg:col-span-4">
-            Click <span className="font-semibold text-stone-700">Generate AI report</span>. It takes about a minute and
-            a half.
+            Click <span className="font-semibold text-stone-700">Generate AI report</span>. It takes about two minutes.
           </p>
         </div>
       )}
