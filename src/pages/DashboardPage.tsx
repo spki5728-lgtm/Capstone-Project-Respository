@@ -3,7 +3,8 @@ import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import DepopShopCard from "../components/DepopShopCard";
 import WeeklyRevenueChart from "../components/WeeklyRevenueChart";
-import { getUpload, type Upload } from "../lib/api";
+import SellThroughCard from "../components/SellThroughCard";
+import { getUpload, type UploadWithListings } from "../lib/api";
 import { formatDate, formatMoney } from "../lib/format";
 import { useProfile } from "../lib/profile";
 
@@ -11,7 +12,7 @@ export default function DashboardPage() {
   const [searchParams] = useSearchParams();
   const { profile } = useProfile();
   const id = searchParams.get("id") ?? profile?.latestUploadId;
-  const [upload, setUpload] = useState<Upload | null>(null);
+  const [upload, setUpload] = useState<UploadWithListings | null>(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -68,6 +69,8 @@ export default function DashboardPage() {
       <Card title="Revenue by week">
         <WeeklyRevenueChart weeks={metrics.weekly} />
       </Card>
+
+      <SellThroughCard upload={upload} onSaved={(listings) => setUpload({ ...upload, listings })} />
 
       <div className="grid gap-6 md:grid-cols-2">
         <Card title="Top brands by revenue">

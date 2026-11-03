@@ -1,4 +1,4 @@
-// Saves and loads uploads (uploads/<id>/...) and user profiles (profiles/<userId>) in Netlify Blobs.
+// Saves and loads uploads (uploads/<id>/...), the seller's listing counts, and user profiles (profiles/<userId>) in Netlify Blobs.
 import { getStore } from "@netlify/blobs";
 import type { Sale } from "./csv";
 import type { Metrics } from "./metrics";
@@ -12,6 +12,9 @@ export type Upload = {
   duplicateRows: number;
   metrics: Metrics;
 };
+
+// How many items the seller listed per category over the same period as the upload, typed in by the seller.
+export type Listings = { counts: Record<string, number>; savedAt: string };
 
 export type Profile = {
   depopHandle?: string;
@@ -47,6 +50,16 @@ export async function loadOwnedUpload(id: string, userId: string): Promise<Uploa
 
 export async function loadSales(id: string): Promise<Sale[] | null> {
   return uploads().get(`${id}/sales.json`, { type: "json" });
+}
+
+export async function loadListings(id: string): Promise<Listings | null> {
+  return uploads().get(`${id}/listings.json`, { type: "json" });
+}
+
+export async function saveListings(id: string, counts: Record<string, number>): Promise<Listings> {
+  const listings = { counts, savedAt: new Date().toISOString() };
+  await uploads().setJSON(`${id}/listings.json`, listings);
+  return listings;
 }
 
 export async function loadProfile(userId: string): Promise<Profile> {

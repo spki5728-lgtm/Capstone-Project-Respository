@@ -95,3 +95,28 @@ function sum(values: number[]): number {
 function round(value: number): number {
   return Math.round(value * 100) / 100;
 }
+
+export type SellThrough = {
+  overall: { listed: number; sold: number; rate: number };
+  categories: { name: string; listed: number; sold: number; rate: number }[];
+};
+
+// Listings-to-sales ratio: of the items the seller listed in each category, what share sold.
+// `listed` counts every item listed in the period, sold or not. Categories with no count are left out.
+export function calculateSellThrough(metrics: Metrics, listed: Record<string, number>): SellThrough | null {
+  const categories = metrics.categories
+    .filter((category) => (listed[category.name] ?? 0) > 0)
+    .map((category) => {
+      const count = listed[category.name];
+      return { name: category.name, listed: count, sold: category.itemsSold, rate: round((category.itemsSold / count) * 100) };
+    })
+    .sort((a, b) => b.rate - a.rate);
+  if (categories.length === 0) return null;
+
+  const totalListed = sum(categories.map((category) => category.listed));
+  const totalSold = sum(categories.map((category) => category.sold));
+  return {
+    overall: { listed: totalListed, sold: totalSold, rate: round((totalSold / totalListed) * 100) },
+    categories,
+  };
+}

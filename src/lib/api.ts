@@ -1,9 +1,10 @@
 // Browser-side calls to our Netlify Functions. The login cookie is sent automatically.
 import type { Feedback } from "../../netlify/lib/automation/feedback";
 import type { Report } from "../../netlify/lib/automation/report";
-import type { Profile, Upload } from "../../netlify/lib/automation/storage";
+import type { Listings, Profile, Upload } from "../../netlify/lib/automation/storage";
 
-export type { Feedback, Profile, Report, Upload };
+export type { Feedback, Listings, Profile, Report, Upload };
+export type UploadWithListings = Upload & { listings: Listings | null };
 export type ReportWithFeedback = Report & { feedback: Feedback };
 
 async function call<T>(path: string, init?: RequestInit, fallbackError = "Something went wrong."): Promise<T> {
@@ -25,8 +26,13 @@ export async function uploadCsv(csv: string, fileName: string): Promise<Upload> 
   );
 }
 
-export function getUpload(id: string): Promise<Upload> {
+export function getUpload(id: string): Promise<UploadWithListings> {
   return call(`/api/uploads/${id}`, undefined, "Couldn't load that upload.");
+}
+
+// `listed` maps category name to how many items were listed in the period ("" or 0 clears it).
+export function saveListings(id: string, listed: Record<string, string>): Promise<Listings> {
+  return call(`/api/uploads/${id}`, sendJson("PATCH", { listed }), "Couldn't save your listing counts.");
 }
 
 // Returns null when no report has been started for this upload yet.
