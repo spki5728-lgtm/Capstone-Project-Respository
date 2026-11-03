@@ -28,6 +28,7 @@ export type Profile = {
   depopHandle?: string;
   latestUploadId?: string;
   uploadIds?: string[]; // newest first
+  uploadIndexBuilt?: boolean; // accounts from before uploadIds existed get their list rebuilt once
 };
 
 const MAX_UPLOADS_LISTED = 50;
@@ -46,9 +47,30 @@ export async function saveUpload(upload: Upload, sales: Sale[]) {
     store.setJSON(`${upload.id}/sales.json`, sales),
     store.setJSON(`${upload.id}/upload.json`, upload),
   ]);
-  const profile = await loadProfile(upload.owner);
-  const ids = [upload.id, ...(profile.uploadIds ?? []).filter((id) => id !== upload.id)];
-  await updateProfile(upload.owner, { latestUploadId: upload.id, uploadIds: ids });
+  const ids = await knownUploadIds(upload.owner);
+  await updateProfile(upload.owner, {
+    latestUploadId: upload.id,
+    uploadIds: [upload.id, ...ids.filter((id) => id !== upload.id)],
+    uploadIndexBuilt: true,
+  });
+}
+
+// The user's upload ids, newest first. Older accounts didn't keep this list, so the first time it's needed
+// it's rebuilt by finding every upload they own.
+async function knownUploadIds(userId: string): Promise<string[]> {
+  const profile = await loadProfile(userId);
+  if (profile.uploadIndexBuilt) return profile.uploadIds ?? [];
+
+  const { blobs } = await uploads().list();
+  const all = await Promise.all(
+    blobs.filter((blob) => blob.key.endsWith("/upload.json")).map((blob) => loadUpload(blob.key.split("/")[0])),
+  );
+  const ids = all
+    .filter((upload): upload is Upload => upload?.owner === userId)
+    .sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt))
+    .map((upload) => upload.id);
+  await updateProfile(userId, { uploadIds: ids, uploadIndexBuilt: true });
+  return ids;
 }
 
 export async function loadUpload(id: string): Promise<Upload | null> {
@@ -66,9 +88,7 @@ export async function loadSales(id: string): Promise<Sale[] | null> {
 }
 
 export async function listUploads(userId: string): Promise<UploadSummary[]> {
-  const profile = await loadProfile(userId);
-  // Uploads made before the list existed are only known as the latest upload.
-  const ids = profile.uploadIds ?? (profile.latestUploadId ? [profile.latestUploadId] : []);
+  const ids = await knownUploadIds(userId);
   const loaded = await Promise.all(ids.slice(0, MAX_UPLOADS_LISTED).map((id) => loadOwnedUpload(id, userId)));
   return loaded
     .filter((upload): upload is Upload => upload !== null)
