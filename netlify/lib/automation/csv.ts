@@ -1,4 +1,11 @@
 // Turns a Depop sales export into clean, typed sale rows.
+import { UserFacingError } from "../errors";
+
+// Depop launched in 2011, so earlier dates (or future ones) are typos and are skipped. This also stops a file
+// with dates decades apart from producing thousands of weekly rows.
+const EARLIEST_SALE = "2011-01-01";
+const MAX_ROWS = 20000;
+const MAX_TEXT = 120; // longest description/brand/category kept, so free text can't bloat AI prompts
 
 export type Sale = {
   date: string; // YYYY-MM-DD
@@ -42,11 +49,12 @@ const HEADER_ALIASES: Record<string, keyof Sale | "depopFee" | "paymentFee" | "b
 
 export function cleanSalesCsv(text: string): CleanResult {
   const rows = parseCsv(text);
-  if (rows.length < 2) throw new Error("The CSV has no sales rows.");
+  if (rows.length < 2) throw new UserFacingError("The CSV has no sales rows.");
+  if (rows.length > MAX_ROWS + 1) throw new UserFacingError(`The CSV has more than ${MAX_ROWS} rows. Split it into smaller files.`);
 
   const columns = rows[0].map((header) => HEADER_ALIASES[squash(header)]);
   if (!columns.includes("date") || !columns.includes("price")) {
-    throw new Error("Couldn't find a sale date and item price column. Is this a Depop sales export?");
+    throw new UserFacingError("Couldn't find a sale date and item price column. Is this a Depop sales export?");
   }
 
   const sales: Sale[] = [];
@@ -59,7 +67,7 @@ export function cleanSalesCsv(text: string): CleanResult {
 
     const field = (name: string) => {
       const index = columns.indexOf(name as never);
-      return index === -1 ? "" : (row[index] ?? "").trim();
+      return index === -1 ? "" : cleanText(row[index] ?? "");
     };
 
     const date = parseDate(field("date"));
@@ -92,7 +100,7 @@ export function cleanSalesCsv(text: string): CleanResult {
     sales.push(sale);
   }
 
-  if (sales.length === 0) throw new Error("No rows had a readable date and price.");
+  if (sales.length === 0) throw new UserFacingError("No rows had a readable date and price.");
   sales.sort((a, b) => a.date.localeCompare(b.date));
   return { sales, skippedRows, duplicateRows };
 }
@@ -137,6 +145,11 @@ function parseCsv(text: string): string[][] {
   return rows;
 }
 
+// Strips control characters and line breaks, collapses spaces, and caps the length.
+function cleanText(value: string): string {
+  return value.replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim().slice(0, MAX_TEXT);
+}
+
 function squash(header: string): string {
   return header.toLowerCase().replace(/[^a-z]/g, "");
 }
@@ -156,7 +169,9 @@ function parseDate(value: string): string | null {
 
 function toIsoDate(year: number, month: number, day: number): string | null {
   if (month < 1 || month > 12 || day < 1 || day > 31) return null;
-  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  const iso = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  return iso >= EARLIEST_SALE && iso <= tomorrow ? iso : null;
 }
 
 function parseMoney(value: string): number | null {

@@ -14,7 +14,8 @@ import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import CheckInCard from "../components/CheckInCard";
 import HumanResearchCard from "../components/HumanResearchCard";
-import { getReport, startReport, type Feedback, type Report, type ReportWithFeedback } from "../lib/api";
+import UpgradeCard from "../components/UpgradeCard";
+import { ApiError, getReport, startReport, type Feedback, type Report, type ReportWithFeedback } from "../lib/api";
 import { formatMoney } from "../lib/format";
 import { useProfile } from "../lib/profile";
 
@@ -40,7 +41,8 @@ const VERDICT_STYLE = {
 
 export default function ReportPage() {
   const [searchParams] = useSearchParams();
-  const { profile } = useProfile();
+  const { profile, refreshProfile } = useProfile();
+  const [needsUpgrade, setNeedsUpgrade] = useState(false);
   const id = searchParams.get("id") ?? profile?.latestUploadId;
   const [report, setReport] = useState<ReportWithFeedback | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -75,8 +77,10 @@ export default function ReportPage() {
     try {
       const started = await startReport(id!);
       setReport({ ...started, feedback: report?.feedback ?? {} });
+      refreshProfile();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Couldn't start the report.");
+      if (err instanceof ApiError && err.code === "upgrade_required") setNeedsUpgrade(true);
+      else setError(err instanceof Error ? err.message : "Couldn't start the report.");
     }
   }
 
@@ -96,17 +100,31 @@ export default function ReportPage() {
   }
   if (!loaded && !error) return <Shell><Box>Loading…</Box></Shell>;
 
+  const plan = profile?.plan;
+  const outOfFreeReports = needsUpgrade || (plan !== undefined && !plan.member && plan.freeReportsLeft === 0);
+
   return (
     <Shell
       action={
-        report?.status !== "running" && (
-          <button type="button" onClick={generate} className="btn-primary">
-            {report ? <RefreshCw size={16} /> : <Sparkles size={16} />}
-            {report ? "Regenerate report" : "Generate AI report"}
-          </button>
+        report?.status !== "running" &&
+        !outOfFreeReports && (
+          <div className="flex flex-col items-end gap-1">
+            <button type="button" onClick={generate} className="btn-primary">
+              {report ? <RefreshCw size={16} /> : <Sparkles size={16} />}
+              {report ? "Regenerate report" : "Generate AI report"}
+            </button>
+            {plan && (
+              <span className="text-xs text-stone-500">
+                {plan.member
+                  ? `Unlimited member · ${plan.reportsLeftToday} left today`
+                  : `${plan.freeReportsLeft} of 2 free reports left`}
+              </span>
+            )}
+          </div>
         )
       }
     >
+      {outOfFreeReports && report?.status !== "running" && <UpgradeCard price={plan?.price ?? "$12.99/year"} />}
       {error && <p role="alert" className="mt-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
 
       {!report && (
@@ -222,7 +240,7 @@ export default function ReportPage() {
             <details className="mt-5 text-sm">
               <summary className="cursor-pointer text-stone-500">Sources ({report.research.sources.length})</summary>
               <ul className="mt-2 space-y-1">
-                {report.research.sources.map((source) => (
+                {report.research.sources.filter((source) => source.url.startsWith("https://")).map((source) => (
                   <li key={source.url}>
                     <a href={source.url} target="_blank" rel="noreferrer" className="text-rose-700 underline">
                       {source.title || source.url}

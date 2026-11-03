@@ -1,16 +1,25 @@
 // Browser-side calls to our Netlify Functions. The login cookie is sent automatically.
 import type { Feedback } from "../../netlify/lib/automation/feedback";
 import type { Report } from "../../netlify/lib/automation/report";
-import type { Listings, Profile, Upload } from "../../netlify/lib/automation/storage";
+import type { Listings, Profile as StoredProfile, Upload, UploadSummary } from "../../netlify/lib/automation/storage";
+import type { Plan } from "../../netlify/lib/automation/usage";
 
-export type { Feedback, Listings, Profile, Report, Upload };
+export type { Feedback, Listings, Plan, Report, Upload, UploadSummary };
+export type Profile = StoredProfile & { plan: Plan };
+
+// An API error, with the server's machine-readable code when there is one (e.g. "upgrade_required").
+export class ApiError extends Error {
+  constructor(message: string, readonly code?: string) {
+    super(message);
+  }
+}
 export type UploadWithListings = Upload & { listings: Listings | null };
 export type ReportWithFeedback = Report & { feedback: Feedback };
 
 async function call<T>(path: string, init?: RequestInit, fallbackError = "Something went wrong."): Promise<T> {
   const response = await fetch(path, init);
-  const body = await response.json();
-  if (!response.ok) throw new Error(body.error ?? fallbackError);
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new ApiError(body.error ?? fallbackError, body.code);
   return body;
 }
 
@@ -33,6 +42,14 @@ export function getUpload(id: string): Promise<UploadWithListings> {
 // `listed` maps category name to how many items were listed in the period ("" or 0 clears it).
 export function saveListings(id: string, listed: Record<string, string>): Promise<Listings> {
   return call(`/api/uploads/${id}`, sendJson("PATCH", { listed }), "Couldn't save your listing counts.");
+}
+
+export function listUploads(): Promise<UploadSummary[]> {
+  return call("/api/uploads", undefined, "Couldn't load your uploads.");
+}
+
+export function deleteUpload(id: string): Promise<{ deleted: true; latestUploadId: string | null }> {
+  return call(`/api/uploads/${id}`, { method: "DELETE" }, "Couldn't delete that upload.");
 }
 
 // Returns null when no report has been started for this upload yet.

@@ -2,7 +2,7 @@
 // It also reviews the Forecaster's numbers against those trends (the "discernment" check).
 import type { Sale } from "../automation/csv";
 import type { Metrics, SellThrough } from "../automation/metrics";
-import { askForJson } from "./claude";
+import { askForJson, sellerData } from "./claude";
 import type { Forecast } from "./forecaster";
 
 export type TrendReport = {
@@ -69,14 +69,14 @@ export async function runTrendAnalyst(
     effort: "medium",
     schema: SCHEMA,
     prompt: `Summary metrics (refunds excluded):
-${JSON.stringify(metrics, null, 1)}
+${sellerData(metrics)}
 
 Individual sales (most recent ${recentSales.length}):
-${JSON.stringify(recentSales)}
+${sellerData(recentSales)}
 
 ${
   sellThrough
-    ? `Sell-through (from the seller's own listing counts; rate is % of listed items that sold):\n${JSON.stringify(sellThrough)}`
+    ? `Sell-through (from the seller's own listing counts; rate is % of listed items that sold):\n${sellerData(sellThrough)}`
     : "The seller hasn't entered listing counts, so sell-through is unknown."
 }
 
@@ -127,11 +127,11 @@ export async function reviewForecast(metrics: Metrics, trends: TrendReport, fore
     system: REVIEW_SYSTEM,
     effort: "medium",
     schema: REVIEW_SCHEMA,
-    prompt: `Weekly history: ${JSON.stringify(metrics.weekly)}
+    prompt: `Weekly history: ${sellerData(metrics.weekly)}
 
-Your trend findings: ${JSON.stringify(trends)}
+Your trend findings: ${sellerData(trends)}
 
-The Forecaster's 30-day forecast: ${JSON.stringify(forecast)}
+The Forecaster's 30-day forecast: ${sellerData(forecast)}
 
 Does this forecast hold up?`,
   });

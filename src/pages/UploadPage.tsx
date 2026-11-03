@@ -2,6 +2,7 @@ import { CloudUpload, LoaderCircle, Sparkles, Telescope, TrendingUp, ChartLine }
 import { useState } from "react";
 import { useNavigate } from "react-router";
 import demoCsv from "../../raw-data/demo.csv?raw";
+import UploadsList from "../components/UploadsList";
 import { uploadCsv } from "../lib/api";
 
 const AGENTS = [
@@ -116,6 +117,8 @@ export default function UploadPage() {
           </div>
         ))}
       </div>
+
+      <UploadsList />
     </section>
   );
 }

@@ -3,7 +3,8 @@
 // (Asking for JSON in the same call as web search makes Claude skip searching.)
 import type Anthropic from "@anthropic-ai/sdk";
 import type { Metrics } from "../automation/metrics";
-import { askForJson, claude, MODEL } from "./claude";
+import { UserFacingError } from "../errors";
+import { askForJson, claude, DATA_RULE, MODEL, sellerData } from "./claude";
 import type { TrendReport } from "./trendAnalyst";
 
 export type MarketResearch = {
@@ -69,13 +70,13 @@ export async function runMarketResearcher(
   const sellerContext = `Today is ${today}.
 
 Seller's own numbers:
-- Top brands: ${JSON.stringify(metrics.topBrands)}
-- Categories: ${JSON.stringify(metrics.categories)}
+- Top brands: ${sellerData(metrics.topBrands)}
+- Categories: ${sellerData(metrics.categories)}
 - Average sale price: $${metrics.averagePrice}
 
 Trend Analyst's findings:
-${JSON.stringify(trends, null, 1)}
-${sellerNotes ? `\nThe seller's own market research (first-hand; weigh it alongside your sources and say where you agree or differ):\n${sellerNotes}` : ""}`;
+${sellerData(trends)}
+${sellerNotes ? `\nThe seller's own market research (first-hand; weigh it alongside your sources and say where you agree or differ):\n${sellerData(sellerNotes)}` : ""}`;
 
   const { notes, sources, searchProblems } = await research(sellerContext);
 
@@ -86,7 +87,7 @@ ${sellerNotes ? `\nThe seller's own market research (first-hand; weigh it alongs
     prompt: `${sellerContext}
 
 Your research notes:
-${notes}
+${sellerData(notes)}
 
 Write the sourcing and pricing advice.`,
   });
@@ -104,7 +105,7 @@ async function research(sellerContext: string) {
     const response = await claude().messages.create({
       model: MODEL,
       max_tokens: 16000,
-      system: RESEARCH_SYSTEM,
+      system: `${RESEARCH_SYSTEM}\n\n${DATA_RULE}`,
       messages,
       tools: [{ type: "web_search_20260209", name: "web_search", max_uses: 6 }],
       output_config: { effort: "low" },
@@ -112,7 +113,7 @@ async function research(sellerContext: string) {
     messages.push({ role: "assistant", content: response.content });
 
     if (response.stop_reason === "pause_turn") continue;
-    if (response.stop_reason === "refusal") throw new Error("Claude declined to answer this request.");
+    if (response.stop_reason === "refusal") throw new UserFacingError("Claude declined to answer this request.");
 
     const notes = response.content
       .filter((block) => block.type === "text")
@@ -120,7 +121,7 @@ async function research(sellerContext: string) {
       .join("\n");
     return { notes, ...collectSearchResults(messages) };
   }
-  throw new Error("Market research took too many steps.");
+  throw new UserFacingError("Market research took too many steps. Try again.");
 }
 
 // The search results Claude read, deduplicated so the report can link to them, plus any search errors.
@@ -132,7 +133,9 @@ function collectSearchResults(messages: Anthropic.MessageParam[]) {
     for (const block of message.content) {
       if (block.type !== "web_search_tool_result") continue;
       if (Array.isArray(block.content)) {
-        for (const result of block.content) sources.set(result.url, result.title);
+        for (const result of block.content) {
+          if (isHttps(result.url)) sources.set(result.url, result.title);
+        }
       } else {
         searchProblems.push(block.content.error_code);
       }
@@ -142,4 +145,13 @@ function collectSearchResults(messages: Anthropic.MessageParam[]) {
     sources: [...sources].slice(0, 8).map(([url, title]) => ({ url, title })),
     searchProblems,
   };
+}
+
+// Only https links are shown in the report.
+function isHttps(url: string): boolean {
+  try {
+    return new URL(url).protocol === "https:";
+  } catch {
+    return false;
+  }
 }

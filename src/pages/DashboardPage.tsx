@@ -47,6 +47,10 @@ export default function DashboardPage() {
             {upload.fileName} · {formatDate(metrics.firstSale)} – {formatDate(metrics.lastSale)}
             {upload.duplicateRows + upload.skippedRows > 0 &&
               ` · ignored ${upload.duplicateRows} duplicate and ${upload.skippedRows} unreadable rows`}
+            {" · "}
+            <Link to="/#uploads" className="font-medium text-rose-600 hover:underline">
+              Switch or delete uploads
+            </Link>
           </p>
         </div>
         <Link to={`/report?id=${upload.id}`} className="btn-primary">

@@ -1,7 +1,10 @@
 // GET   /api/uploads/<id> — one of the user's uploads, its metrics, and their listing counts.
-// PATCH /api/uploads/<id> — body { listed: { [category]: count } } saves how many items they listed per category.
+// PATCH  /api/uploads/<id> — body { listed: { [category]: count } } saves how many items they listed per category.
+// DELETE /api/uploads/<id> — deletes the upload and everything made from it (report, notes, check-in, listing counts).
 import { requireUser, UUID } from "../lib/auth";
-import { loadListings, loadOwnedUpload, saveListings } from "../lib/automation/storage";
+import { deleteUploadEverywhere } from "../lib/automation/deletion";
+import { isInProgress, loadReport } from "../lib/automation/report";
+import { loadListings, loadOwnedUpload, loadProfile, saveListings } from "../lib/automation/storage";
 
 export default async (req: Request) => {
   const user = await requireUser();
@@ -14,9 +17,16 @@ export default async (req: Request) => {
   if (!upload) return Response.json({ error: "Upload not found." }, { status: 404 });
 
   if (req.method === "GET") return Response.json({ ...upload, listings: await loadListings(id) });
-  if (req.method !== "PATCH") return Response.json({ error: "Use GET or PATCH." }, { status: 405 });
+  if (req.method === "DELETE") {
+    if (isInProgress(await loadReport(id))) {
+      return Response.json({ error: "Wait for the AI report to finish, then delete." }, { status: 409 });
+    }
+    await deleteUploadEverywhere(upload);
+    return Response.json({ deleted: true, latestUploadId: (await loadProfile(user.id)).latestUploadId ?? null });
+  }
+  if (req.method !== "PATCH") return Response.json({ error: "Use GET, PATCH or DELETE." }, { status: 405 });
 
-  const { listed } = await req.json();
+  const { listed } = await req.json().catch(() => ({}));
   const counts: Record<string, number> = {};
   for (const category of upload.metrics.categories) {
     const raw = listed?.[category.name];

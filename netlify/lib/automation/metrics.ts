@@ -38,6 +38,8 @@ export function calculateMetrics(allSales: Sale[]): Metrics {
   };
 }
 
+const MAX_WEEKS = 104;
+
 // One entry per Monday-starting week, including weeks with no sales, so gaps show on the chart.
 function weeklyTotals(sales: Sale[]): Metrics["weekly"] {
   if (sales.length === 0) return [];
@@ -52,7 +54,9 @@ function weeklyTotals(sales: Sale[]): Metrics["weekly"] {
 
   const weeks: Metrics["weekly"] = [];
   const last = mondayOf(sales[sales.length - 1].date);
-  for (let week = mondayOf(sales[0].date); week <= last; week = addDays(week, 7)) {
+  // At most the last 104 weeks (2 years), so the chart and AI prompts stay a sensible size.
+  const first = [mondayOf(sales[0].date), addDays(last, -7 * (MAX_WEEKS - 1))].sort().at(-1)!;
+  for (let week = first; week <= last; week = addDays(week, 7)) {
     const total = totals.get(week) ?? { revenue: 0, itemsSold: 0 };
     weeks.push({ weekStart: week, revenue: round(total.revenue), itemsSold: total.itemsSold });
   }
