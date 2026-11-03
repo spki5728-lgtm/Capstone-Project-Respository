@@ -1,25 +1,31 @@
 import { NavLink, Outlet } from "react-router";
+import Logo from "./Logo";
 
 const links = [
   { to: "/", label: "Upload" },
   { to: "/dashboard", label: "Dashboard" },
-  { to: "/report", label: "Report" },
+  { to: "/report", label: "AI Report" },
 ];
 
 export default function Layout() {
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-900">
-      <header className="border-b border-gray-200 bg-white">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-4">
-          <h1 className="text-lg font-semibold">Depop Sales Insights</h1>
-          <nav className="flex gap-4 text-sm">
+    <div className="flex min-h-screen flex-col text-stone-900">
+      <header className="sticky top-0 z-20 border-b border-stone-200/70 bg-white/70 backdrop-blur-md">
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3">
+          <NavLink to="/" className="flex shrink-0 items-center gap-2">
+            <Logo size={30} />
+            <span className="hidden text-xl font-extrabold tracking-tight sm:inline">Flipcast</span>
+          </NavLink>
+          <nav className="flex gap-1 rounded-full bg-stone-100 p-1 text-sm">
             {links.map((link) => (
               <NavLink
                 key={link.to}
                 to={link.to}
                 end
                 className={({ isActive }) =>
-                  isActive ? "font-semibold text-red-600" : "text-gray-600 hover:text-gray-900"
+                  `whitespace-nowrap rounded-full px-2.5 py-1.5 font-medium transition sm:px-3 ${
+                    isActive ? "bg-white text-rose-600 shadow-sm" : "text-stone-600 hover:text-stone-900"
+                  }`
                 }
               >
                 {link.label}
@@ -28,9 +34,12 @@ export default function Layout() {
           </nav>
         </div>
       </header>
-      <main className="mx-auto max-w-5xl px-4 py-8">
+      <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-10">
         <Outlet />
       </main>
+      <footer className="border-t border-stone-200/70 py-6 text-center text-xs text-stone-500">
+        Flipcast · AI insights for Depop sellers · CU Boulder AI Club capstone
+      </footer>
     </div>
   );
 }

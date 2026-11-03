@@ -1,12 +1,23 @@
+import {
+  ChartLine,
+  Check,
+  LoaderCircle,
+  RefreshCw,
+  Sparkles,
+  Telescope,
+  TrendingUp,
+  X,
+  type LucideIcon,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { getReport, latestUploadId, startReport, type Report } from "../lib/api";
 import { formatMoney } from "../lib/format";
 
-const STEPS: { key: keyof Report["steps"]; label: string; doing: string }[] = [
-  { key: "trends", label: "Trend Analyst", doing: "Reading your sales history" },
-  { key: "research", label: "Market Researcher", doing: "Searching the resale market" },
-  { key: "forecast", label: "Forecaster", doing: "Projecting the next 30 days" },
+const STEPS: { key: keyof Report["steps"]; label: string; doing: string; icon: LucideIcon }[] = [
+  { key: "trends", label: "Trend Analyst", doing: "Reading your sales history", icon: TrendingUp },
+  { key: "research", label: "Market Researcher", doing: "Searching the resale market", icon: Telescope },
+  { key: "forecast", label: "Forecaster", doing: "Projecting the next 30 days", icon: ChartLine },
 ];
 
 export default function ReportPage() {
@@ -64,35 +75,41 @@ export default function ReportPage() {
     <Shell
       action={
         report?.status !== "running" && (
-          <button
-            type="button"
-            onClick={generate}
-            className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700"
-          >
+          <button type="button" onClick={generate} className="btn-primary">
+            {report ? <RefreshCw size={16} /> : <Sparkles size={16} />}
             {report ? "Regenerate report" : "Generate AI report"}
           </button>
         )
       }
     >
-      {error && <p role="alert" className="mt-4 rounded-md bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
+      {error && <p role="alert" className="mt-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
 
       {!report && (
-        <Box>
-          Three AI agents will study your sales, research the resale market, and forecast your next 30 days. It
-          takes about a minute and a half.
-        </Box>
+        <div className="mt-6 grid gap-4 sm:grid-cols-3">
+          {STEPS.map((step, index) => (
+            <div key={step.key} className="rise card p-5" style={{ animationDelay: `${index * 70}ms` }}>
+              <AgentBadge icon={step.icon} />
+              <h3 className="mt-3 font-bold">{step.label}</h3>
+              <p className="mt-1 text-sm text-stone-600">{step.doing}.</p>
+            </div>
+          ))}
+          <p className="text-center text-sm text-stone-500 sm:col-span-3">
+            Click <span className="font-semibold text-stone-700">Generate AI report</span>. It takes about a minute and
+            a half.
+          </p>
+        </div>
       )}
 
       {report && report.status !== "done" && <Progress report={report} />}
 
       {report?.trends && (
-        <Section title="Trends" agent="Trend Analyst">
-          <p className="text-lg font-medium">{report.trends.headline}</p>
+        <Section title="Trends" agent="trends">
+          <p className="text-lg font-semibold leading-snug">{report.trends.headline}</p>
           <ul className="mt-4 space-y-3">
             {report.trends.trends.map((trend) => (
               <li key={trend.title}>
-                <span className="font-medium">{trend.title}.</span>{" "}
-                <span className="text-gray-700">{trend.detail}</span>
+                <span className="font-semibold">{trend.title}.</span>{" "}
+                <span className="text-stone-700">{trend.detail}</span>
               </li>
             ))}
           </ul>
@@ -104,7 +121,7 @@ export default function ReportPage() {
       )}
 
       {report?.forecast && (
-        <Section title="30-day forecast" agent="Forecaster">
+        <Section title="30-day forecast" agent="forecast">
           <div className="grid grid-cols-2 gap-3">
             <Range
               label="Revenue"
@@ -113,7 +130,7 @@ export default function ReportPage() {
             />
             <Range label="Items sold" range={report.forecast.itemsSold} format={(value) => String(Math.round(value))} />
           </div>
-          <p className="mt-4 text-gray-700">{report.forecast.summary}</p>
+          <p className="mt-4 text-stone-700">{report.forecast.summary}</p>
           <div className="mt-4 grid gap-4 md:grid-cols-2">
             <List title="What's driving it" items={report.forecast.drivers} />
             <List title="Risks" items={report.forecast.risks} />
@@ -122,11 +139,11 @@ export default function ReportPage() {
       )}
 
       {report?.research && (
-        <Section title="Sourcing & pricing" agent="Market Researcher">
-          <p className="text-gray-700">{report.research.marketSummary}</p>
-          <h4 className="mt-5 text-sm font-medium text-gray-500">Source next</h4>
+        <Section title="Sourcing & pricing" agent="research">
+          <p className="text-stone-700">{report.research.marketSummary}</p>
+          <h4 className="mt-5 text-sm font-medium text-stone-500">Source next</h4>
           <table className="mt-2 w-full text-left text-sm">
-            <thead className="text-gray-500">
+            <thead className="text-stone-500">
               <tr>
                 <th className="pb-2 font-normal">Item</th>
                 <th className="pb-2 text-right font-normal">Buy under</th>
@@ -135,10 +152,10 @@ export default function ReportPage() {
             </thead>
             <tbody>
               {report.research.sourcing.map((item) => (
-                <tr key={item.item} className="border-t border-gray-100 align-top">
+                <tr key={item.item} className="border-t border-stone-100 align-top">
                   <td className="py-2 pr-4">
                     <div className="font-medium">{item.item}</div>
-                    <div className="text-gray-600">{item.why}</div>
+                    <div className="text-stone-600">{item.why}</div>
                   </td>
                   <td className="py-2 text-right">{formatMoney(item.buyUnder)}</td>
                   <td className="py-2 text-right">{formatMoney(item.sellFor)}</td>
@@ -146,17 +163,17 @@ export default function ReportPage() {
               ))}
             </tbody>
           </table>
-          <h4 className="mt-5 text-sm font-medium text-gray-500">Pricing</h4>
+          <h4 className="mt-5 text-sm font-medium text-stone-500">Pricing</h4>
           <ul className="mt-2 space-y-2 text-sm">
             {report.research.pricing.map((tip) => (
               <li key={tip.segment}>
-                <span className="font-medium">{tip.segment}:</span> <span className="text-gray-700">{tip.advice}</span>
+                <span className="font-medium">{tip.segment}:</span> <span className="text-stone-700">{tip.advice}</span>
               </li>
             ))}
           </ul>
           {report.research.sources.length > 0 && (
             <details className="mt-5 text-sm">
-              <summary className="cursor-pointer text-gray-500">Sources ({report.research.sources.length})</summary>
+              <summary className="cursor-pointer text-stone-500">Sources ({report.research.sources.length})</summary>
               <ul className="mt-2 space-y-1">
                 {report.research.sources.map((source) => (
                   <li key={source.url}>
@@ -174,26 +191,53 @@ export default function ReportPage() {
   );
 }
 
+
 function Progress({ report }: { report: Report }) {
+  const done = STEPS.filter((step) => report.steps[step.key] === "done").length;
   return (
-    <div className="mt-6 rounded-lg border border-gray-200 bg-white p-5">
+    <div className="card mt-6 p-5">
       {report.status === "failed" && (
-        <p className="mb-4 rounded-md bg-red-50 px-4 py-3 text-sm text-red-700">
+        <p className="mb-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">
           The report stopped: {report.error} Try regenerating it.
         </p>
       )}
+      <div className="mb-5 h-1.5 overflow-hidden rounded-full bg-stone-100">
+        <div
+          className="h-full rounded-full bg-gradient-to-r from-rose-600 to-orange-400 transition-all duration-700"
+          style={{ width: `${Math.max((done / STEPS.length) * 100, 6)}%` }}
+        />
+      </div>
       <ol className="space-y-3">
         {STEPS.map((step) => {
           const status = report.steps[step.key];
           return (
             <li key={step.key} className="flex items-center gap-3">
-              <span className="w-5 text-center" aria-hidden>
-                {status === "done" ? "✓" : status === "failed" ? "✕" : status === "running" ? <Spinner /> : "·"}
+              <span
+                className={`flex h-8 w-8 items-center justify-center rounded-full ${
+                  status === "done"
+                    ? "bg-emerald-50 text-emerald-600"
+                    : status === "failed"
+                      ? "bg-red-50 text-red-600"
+                      : status === "running"
+                        ? "bg-rose-50 text-rose-600"
+                        : "bg-stone-100 text-stone-400"
+                }`}
+                aria-hidden
+              >
+                {status === "done" ? (
+                  <Check size={16} />
+                ) : status === "failed" ? (
+                  <X size={16} />
+                ) : status === "running" ? (
+                  <LoaderCircle size={16} className="animate-spin" />
+                ) : (
+                  <step.icon size={16} />
+                )}
               </span>
-              <span className={status === "waiting" ? "text-gray-400" : "text-gray-900"}>
-                <span className="font-medium">{step.label}</span>
-                {status === "running" && <span className="text-gray-500"> — {step.doing}…</span>}
-                {status === "failed" && <span className="text-red-700"> — failed</span>}
+              <span className={status === "waiting" ? "text-stone-400" : "text-stone-900"}>
+                <span className="font-semibold">{step.label}</span>
+                {status === "running" && <span className="text-stone-500"> · {step.doing}…</span>}
+                {status === "failed" && <span className="text-red-700"> · failed</span>}
               </span>
             </li>
           );
@@ -203,9 +247,11 @@ function Progress({ report }: { report: Report }) {
   );
 }
 
-function Spinner() {
+function AgentBadge({ icon: Icon }: { icon: LucideIcon }) {
   return (
-    <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-gray-300 border-t-rose-600" />
+    <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-rose-500 to-orange-400 text-white shadow-md shadow-rose-500/20">
+      <Icon size={20} />
+    </span>
   );
 }
 
@@ -219,10 +265,10 @@ function Range({
   format: (value: number) => string;
 }) {
   return (
-    <div className="rounded-lg bg-gray-50 p-4">
-      <div className="text-sm text-gray-500">{label}</div>
-      <div className="mt-1 text-2xl font-semibold">{format(range.expected)}</div>
-      <div className="text-sm text-gray-500">
+    <div className="rounded-xl bg-gradient-to-br from-rose-50 to-orange-50 p-4">
+      <div className="text-sm font-medium text-stone-600">{label}</div>
+      <div className="text-flip mt-1 text-3xl font-extrabold tracking-tight">{format(range.expected)}</div>
+      <div className="text-sm text-stone-500">
         likely {format(range.low)} – {format(range.high)}
       </div>
     </div>
@@ -232,8 +278,8 @@ function Range({
 function List({ title, items }: { title: string; items: string[] }) {
   return (
     <div>
-      <h4 className="text-sm font-medium text-gray-500">{title}</h4>
-      <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-gray-700">
+      <h4 className="text-sm font-semibold text-stone-500">{title}</h4>
+      <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-stone-700 marker:text-rose-400">
         {items.map((item) => (
           <li key={item}>{item}</li>
         ))}
@@ -242,12 +288,24 @@ function List({ title, items }: { title: string; items: string[] }) {
   );
 }
 
-function Section({ title, agent, children }: { title: string; agent: string; children: React.ReactNode }) {
+function Section({
+  title,
+  agent,
+  children,
+}: {
+  title: string;
+  agent: keyof Report["steps"];
+  children: React.ReactNode;
+}) {
+  const step = STEPS.find((candidate) => candidate.key === agent)!;
   return (
-    <div className="mt-6 rounded-lg border border-gray-200 bg-white p-5">
-      <div className="mb-4 flex items-baseline justify-between gap-2">
-        <h3 className="text-lg font-semibold">{title}</h3>
-        <span className="text-xs text-gray-400">by the {agent}</span>
+    <div className="rise card mt-6 p-6">
+      <div className="mb-5 flex items-center gap-3">
+        <AgentBadge icon={step.icon} />
+        <div>
+          <h3 className="text-lg font-bold leading-tight">{title}</h3>
+          <span className="text-xs text-stone-500">by the {step.label}</span>
+        </div>
       </div>
       {children}
     </div>
@@ -257,10 +315,10 @@ function Section({ title, agent, children }: { title: string; agent: string; chi
 function Shell({ action, children }: { action?: React.ReactNode; children: React.ReactNode }) {
   return (
     <section>
-      <div className="flex flex-wrap items-end justify-between gap-2">
+      <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="text-2xl font-semibold">AI Report</h2>
-          <p className="mt-1 text-gray-600">Trends, a 30-day forecast, and sourcing and pricing recommendations.</p>
+          <h2 className="text-3xl font-extrabold tracking-tight">AI Report</h2>
+          <p className="mt-1 text-stone-600">Trends, a 30-day forecast, and sourcing and pricing recommendations.</p>
         </div>
         {action}
       </div>
@@ -270,5 +328,5 @@ function Shell({ action, children }: { action?: React.ReactNode; children: React
 }
 
 function Box({ children }: { children: React.ReactNode }) {
-  return <p className="mt-6 rounded-lg border border-gray-200 bg-white p-10 text-center text-gray-600">{children}</p>;
+  return <p className="card mt-6 p-10 text-center text-stone-600">{children}</p>;
 }

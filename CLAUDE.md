@@ -1,8 +1,8 @@
-# Depop Sales Insights
+# Flipcast (Depop Sales Insights)
 
 Capstone project for the CU Boulder AI Club Applied AI program. Live demo: **Nov 3, 2026**.
 
-A Depop seller uploads their sales CSV, sees sales metrics on a dashboard, and gets an AI report with:
+Flipcast is the app's name in the UI. A Depop seller uploads their sales CSV, sees sales metrics on a dashboard, and gets an AI report with:
 
 - trends in what sells and when
 - a 30-day sales forecast
