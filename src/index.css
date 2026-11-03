@@ -1,1 +1,55 @@
 @import "tailwindcss";
+
+@theme {
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+}
+
+body {
+  background-color: #fafaf9;
+  background-image:
+    radial-gradient(60rem 30rem at 10% -10%, rgb(225 29 72 / 0.10), transparent 60%),
+    radial-gradient(50rem 30rem at 95% -5%, rgb(249 115 22 / 0.12), transparent 60%);
+  background-repeat: no-repeat;
+}
+
+/* Brand gradient text, e.g. the hero headline */
+.text-flip {
+  background: linear-gradient(90deg, #e11d48, #f97316);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Shared pieces live in the components layer so utility classes can still override them. */
+@layer components {
+  /* Soft card used across pages */
+  .card {
+    @apply rounded-2xl border border-stone-200/80 bg-white shadow-[0_1px_2px_rgb(0_0_0/0.04),0_8px_24px_-12px_rgb(0_0_0/0.08)];
+  }
+
+  /* Main call-to-action button */
+  .btn-primary {
+    @apply inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-rose-600 to-orange-500 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-rose-500/25 transition hover:brightness-110 active:scale-[0.98];
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.rise {
+  animation: rise 0.5s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rise {
+    animation: none;
+  }
+}
