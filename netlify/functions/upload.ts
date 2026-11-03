@@ -1,11 +1,14 @@
-// POST /api/upload — body is the CSV text. Cleans it, calculates metrics, and saves everything.
+// POST /api/upload — body is the CSV text. Cleans it, calculates metrics, and saves everything for this user.
+import { requireUser } from "../lib/auth";
 import { cleanSalesCsv } from "../lib/automation/csv";
 import { calculateMetrics } from "../lib/automation/metrics";
-import { saveUpload, type Upload } from "../lib/automation/storage";
+import { saveUpload, updateProfile, type Upload } from "../lib/automation/storage";
 
 const MAX_BYTES = 5 * 1024 * 1024;
 
 export default async (req: Request) => {
+  const user = await requireUser();
+  if (user instanceof Response) return user;
   if (req.method !== "POST") return Response.json({ error: "Use POST." }, { status: 405 });
 
   const csv = await req.text();
@@ -16,6 +19,7 @@ export default async (req: Request) => {
     const { sales, skippedRows, duplicateRows } = cleanSalesCsv(csv);
     const upload: Upload = {
       id: crypto.randomUUID(),
+      owner: user.id,
       uploadedAt: new Date().toISOString(),
       fileName: req.headers.get("x-file-name") ?? "sales.csv",
       skippedRows,
@@ -23,6 +27,7 @@ export default async (req: Request) => {
       metrics: calculateMetrics(sales),
     };
     await saveUpload(upload, csv, sales);
+    await updateProfile(user.id, { latestUploadId: upload.id });
     return Response.json(upload);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Couldn't read that CSV.";

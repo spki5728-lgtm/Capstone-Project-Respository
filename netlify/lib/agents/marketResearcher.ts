@@ -64,6 +64,7 @@ export async function runMarketResearcher(
   metrics: Metrics,
   trends: TrendReport,
   today: string,
+  sellerNotes?: string,
 ): Promise<MarketResearch> {
   const sellerContext = `Today is ${today}.
 
@@ -73,7 +74,8 @@ Seller's own numbers:
 - Average sale price: $${metrics.averagePrice}
 
 Trend Analyst's findings:
-${JSON.stringify(trends, null, 1)}`;
+${JSON.stringify(trends, null, 1)}
+${sellerNotes ? `\nThe seller's own market research (first-hand; weigh it alongside your sources and say where you agree or differ):\n${sellerNotes}` : ""}`;
 
   const { notes, sources, searchProblems } = await research(sellerContext);
 

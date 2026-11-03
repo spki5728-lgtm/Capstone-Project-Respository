@@ -3,6 +3,7 @@ import {
   Check,
   LoaderCircle,
   RefreshCw,
+  Scale,
   Sparkles,
   Telescope,
   TrendingUp,
@@ -11,19 +12,37 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router";
-import { getReport, latestUploadId, startReport, type Report } from "../lib/api";
+import CheckInCard from "../components/CheckInCard";
+import HumanResearchCard from "../components/HumanResearchCard";
+import { getReport, startReport, type Feedback, type Report, type ReportWithFeedback } from "../lib/api";
 import { formatMoney } from "../lib/format";
+import { useProfile } from "../lib/profile";
 
-const STEPS: { key: keyof Report["steps"]; label: string; doing: string; icon: LucideIcon }[] = [
-  { key: "trends", label: "Trend Analyst", doing: "Reading your sales history", icon: TrendingUp },
-  { key: "research", label: "Market Researcher", doing: "Searching the resale market", icon: Telescope },
-  { key: "forecast", label: "Forecaster", doing: "Projecting the next 30 days", icon: ChartLine },
+// `by` is the agent that writes each section; the discernment check is the Trend Analyst reviewing the Forecaster.
+const STEPS: { key: keyof Report["steps"]; label: string; by: string; doing: string; icon: LucideIcon }[] = [
+  { key: "trends", label: "Trend Analyst", by: "the Trend Analyst", doing: "Reading your sales history", icon: TrendingUp },
+  { key: "research", label: "Market Researcher", by: "the Market Researcher", doing: "Searching the resale market", icon: Telescope },
+  { key: "forecast", label: "Forecaster", by: "the Forecaster", doing: "Projecting the next 30 days", icon: ChartLine },
+  {
+    key: "review",
+    label: "Discernment check",
+    by: "the Trend Analyst, checking the Forecaster",
+    doing: "Trend Analyst is checking the forecast",
+    icon: Scale,
+  },
 ];
+
+const VERDICT_STYLE = {
+  agrees: "bg-emerald-50 text-emerald-700 ring-emerald-200",
+  "partly agrees": "bg-amber-50 text-amber-800 ring-amber-200",
+  disagrees: "bg-red-50 text-red-700 ring-red-200",
+};
 
 export default function ReportPage() {
   const [searchParams] = useSearchParams();
-  const id = searchParams.get("id") ?? latestUploadId();
-  const [report, setReport] = useState<Report | null>(null);
+  const { profile } = useProfile();
+  const id = searchParams.get("id") ?? profile?.latestUploadId;
+  const [report, setReport] = useState<ReportWithFeedback | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState("");
 
@@ -54,12 +73,18 @@ export default function ReportPage() {
   async function generate() {
     setError("");
     try {
-      setReport(await startReport(id!));
+      const started = await startReport(id!);
+      setReport({ ...started, feedback: report?.feedback ?? {} });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't start the report.");
     }
   }
 
+  function updateFeedback(feedback: Feedback) {
+    if (report) setReport({ ...report, feedback });
+  }
+
+  if (!profile && !id) return <Shell><Box>Loading…</Box></Shell>;
   if (!id) {
     return (
       <Shell>
@@ -85,7 +110,7 @@ export default function ReportPage() {
       {error && <p role="alert" className="mt-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
 
       {!report && (
-        <div className="mt-6 grid gap-4 sm:grid-cols-3">
+        <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {STEPS.map((step, index) => (
             <div key={step.key} className="rise card p-5" style={{ animationDelay: `${index * 70}ms` }}>
               <AgentBadge icon={step.icon} />
@@ -93,9 +118,8 @@ export default function ReportPage() {
               <p className="mt-1 text-sm text-stone-600">{step.doing}.</p>
             </div>
           ))}
-          <p className="text-center text-sm text-stone-500 sm:col-span-3">
-            Click <span className="font-semibold text-stone-700">Generate AI report</span>. It takes about a minute and
-            a half.
+          <p className="text-center text-sm text-stone-500 sm:col-span-2 lg:col-span-4">
+            Click <span className="font-semibold text-stone-700">Generate AI report</span>. It takes about two minutes.
           </p>
         </div>
       )}
@@ -134,6 +158,29 @@ export default function ReportPage() {
           <div className="mt-4 grid gap-4 md:grid-cols-2">
             <List title="What's driving it" items={report.forecast.drivers} />
             <List title="Risks" items={report.forecast.risks} />
+          </div>
+        </Section>
+      )}
+
+      {report?.review && (
+        <Section title="Discernment" agent="review">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className={`rounded-full px-3 py-1 text-sm font-bold capitalize ring-1 ${VERDICT_STYLE[report.review.verdict]}`}>
+              Trend Analyst {report.review.verdict}
+            </span>
+            <span className="rounded-full bg-stone-100 px-3 py-1 text-sm font-medium text-stone-700">
+              {report.review.confidence} confidence in the forecast
+            </span>
+            {report.forecast && Math.round(report.review.suggestedRevenue) !== Math.round(report.forecast.revenue.expected) && (
+              <span className="rounded-full bg-stone-100 px-3 py-1 text-sm font-medium text-stone-700">
+                Its own estimate: {formatMoney(Math.round(report.review.suggestedRevenue))}
+              </span>
+            )}
+          </div>
+          <p className="mt-4 text-stone-700">{report.review.summary}</p>
+          <div className="mt-4 grid gap-4 md:grid-cols-2">
+            <List title="Holds up" items={report.review.agreements} />
+            {report.review.concerns.length > 0 && <List title="Concerns" items={report.review.concerns} />}
           </div>
         </Section>
       )}
@@ -186,6 +233,13 @@ export default function ReportPage() {
             </details>
           )}
         </Section>
+      )}
+
+      {report?.status === "done" && (
+        <>
+          <HumanResearchCard uploadId={id} feedback={report.feedback} onSaved={updateFeedback} />
+          {report.forecast && <CheckInCard report={report} onSaved={updateFeedback} />}
+        </>
       )}
     </Shell>
   );
@@ -304,7 +358,7 @@ function Section({
         <AgentBadge icon={step.icon} />
         <div>
           <h3 className="text-lg font-bold leading-tight">{title}</h3>
-          <span className="text-xs text-stone-500">by the {step.label}</span>
+          <span className="text-xs text-stone-500">by {step.by}</span>
         </div>
       </div>
       {children}

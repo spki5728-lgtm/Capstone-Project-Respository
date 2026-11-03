@@ -1,7 +1,9 @@
 // Trend Analyst: finds what sells, when, and at what price in this seller's own history.
+// It also reviews the Forecaster's numbers against those trends (the "discernment" check).
 import type { Sale } from "../automation/csv";
 import type { Metrics } from "../automation/metrics";
 import { askForJson } from "./claude";
+import type { Forecast } from "./forecaster";
 
 export type TrendReport = {
   headline: string;
@@ -67,5 +69,58 @@ Individual sales (most recent ${recentSales.length}):
 ${JSON.stringify(recentSales)}
 
 What are the trends in this seller's sales?`,
+  });
+}
+
+export type ForecastReview = {
+  verdict: "agrees" | "partly agrees" | "disagrees";
+  confidence: "low" | "medium" | "high";
+  summary: string;
+  agreements: string[];
+  concerns: string[];
+  suggestedRevenue: number;
+};
+
+const REVIEW_SYSTEM = `You are the Trend Analyst for a Depop reseller, now acting as a skeptical second opinion on the Forecaster's 30-day forecast.
+
+Check the forecast against the seller's actual history and the trends you found: is the expected number consistent with recent weekly sales, is the range honest, and are the Forecaster's stated drivers really supported by the data? Point out anything that looks optimistic, pessimistic, or unsupported. Be specific and use numbers. Disagreeing is fine when the data says so.`;
+
+const REVIEW_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["verdict", "confidence", "summary", "agreements", "concerns", "suggestedRevenue"],
+  properties: {
+    verdict: { type: "string", enum: ["agrees", "partly agrees", "disagrees"] },
+    confidence: {
+      type: "string",
+      enum: ["low", "medium", "high"],
+      description: "How much the seller should trust the forecast.",
+    },
+    summary: { type: "string", description: "2 sentences: your overall judgment of the forecast." },
+    agreements: { type: "array", items: { type: "string" }, description: "1 to 3 parts that hold up, with numbers." },
+    concerns: {
+      type: "array",
+      items: { type: "string" },
+      description: "0 to 3 parts that look off, with numbers. Empty if none.",
+    },
+    suggestedRevenue: {
+      type: "number",
+      description: "Your own expected 30-day revenue in USD. Same as the forecast if you agree.",
+    },
+  },
+};
+
+export async function reviewForecast(metrics: Metrics, trends: TrendReport, forecast: Forecast): Promise<ForecastReview> {
+  return askForJson<ForecastReview>({
+    system: REVIEW_SYSTEM,
+    effort: "medium",
+    schema: REVIEW_SCHEMA,
+    prompt: `Weekly history: ${JSON.stringify(metrics.weekly)}
+
+Your trend findings: ${JSON.stringify(trends)}
+
+The Forecaster's 30-day forecast: ${JSON.stringify(forecast)}
+
+Does this forecast hold up?`,
   });
 }
