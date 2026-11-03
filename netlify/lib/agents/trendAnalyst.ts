@@ -1,7 +1,7 @@
 // Trend Analyst: finds what sells, when, and at what price in this seller's own history.
 // It also reviews the Forecaster's numbers against those trends (the "discernment" check).
 import type { Sale } from "../automation/csv";
-import type { Metrics } from "../automation/metrics";
+import type { Metrics, SellThrough } from "../automation/metrics";
 import { askForJson } from "./claude";
 import type { Forecast } from "./forecaster";
 
@@ -14,7 +14,9 @@ export type TrendReport = {
 
 const SYSTEM = `You are the Trend Analyst for a Depop reseller. You study their sales history and explain, in plain language a college student would use, what is selling, what isn't, and how that changes over time.
 
-Ground every claim in the numbers you are given; cite the specific brand, category, price, or date range. Do not invent sales. If the history is short, say what it can and can't show.`;
+Ground every claim in the numbers you are given; cite the specific brand, category, price, or date range. Do not invent sales. If the history is short, say what it can and can't show.
+
+If you are given sell-through rates (items sold ÷ items listed per category), use them: a high rate means demand outpaces what the seller lists (list more), a low rate means stock is piling up (list less, or lower prices). Weigh sell-through alongside revenue; a category can earn a lot yet sit unsold.`;
 
 const SCHEMA = {
   type: "object",
@@ -48,7 +50,11 @@ const SCHEMA = {
   },
 };
 
-export async function runTrendAnalyst(metrics: Metrics, sales: Sale[]): Promise<TrendReport> {
+export async function runTrendAnalyst(
+  metrics: Metrics,
+  sales: Sale[],
+  sellThrough: SellThrough | null,
+): Promise<TrendReport> {
   const recentSales = sales.slice(-400).map(({ date, brand, category, size, price, description }) => ({
     date,
     brand,
@@ -67,6 +73,12 @@ ${JSON.stringify(metrics, null, 1)}
 
 Individual sales (most recent ${recentSales.length}):
 ${JSON.stringify(recentSales)}
+
+${
+  sellThrough
+    ? `Sell-through (from the seller's own listing counts; rate is % of listed items that sold):\n${JSON.stringify(sellThrough)}`
+    : "The seller hasn't entered listing counts, so sell-through is unknown."
+}
 
 What are the trends in this seller's sales?`,
   });

@@ -9,7 +9,7 @@ Flipcast is the app's name in the UI. A Depop seller uploads their sales CSV, se
 - sourcing and pricing recommendations
 - a "discernment" check where the Trend Analyst reviews the Forecaster's numbers
 
-Users must log in. They can save their Depop handle for a one-click link to their shop, add their own market research to a report, and do a 30-day check-in that compares actual sales with the forecast.
+Users must log in. They can enter how many items they listed per category to see listings-to-sales (sell-through) ratios, which the Trend Analyst also uses; save their Depop handle for a one-click link to their shop, add their own market research to a report, and do a 30-day check-in that compares actual sales with the forecast.
 
 ## Stack
 
@@ -32,7 +32,7 @@ src/                     React app
 netlify/
   functions/             HTTP endpoints only; every file here is deployed as a function
   lib/auth.ts            requireUser() for every API function
-  lib/automation/        csv.ts (cleanup), metrics.ts (calculations), storage.ts (uploads + profiles in Blobs),
+  lib/automation/        csv.ts (cleanup), metrics.ts (calculations, incl. sell-through), storage.ts (uploads, listing counts, profiles in Blobs),
                          report.ts (runs the agents in order, saves progress), feedback.ts (seller's research
                          and 30-day check-in, stored apart from the report); (planned) scheduled refresh
   lib/agents/            claude.ts (client + JSON helper), trendAnalyst.ts (+ reviewForecast),
@@ -48,7 +48,7 @@ Shared code goes in `netlify/lib/`, never in `netlify/functions/`, so helpers ar
 2. **Automation** cleans the CSV, calculates metrics in code, and saves raw CSV, clean sales, and metrics to the `uploads` Blobs store under `<id>/`. Dashboard loads them from `/api/uploads/<id>`.
 3. Report page POSTs `/api/reports/<id>`, which starts the `run-report-background` function. **Automation** runs Trend Analyst → Market Researcher (with the seller's own notes, if any) → Forecaster → Trend Analyst review, and saves progress after each step to the `reports` Blobs store.
 4. Report page polls `GET /api/reports/<id>` every 3 seconds and shows each section as it finishes. `PATCH /api/reports/<id>` saves the seller's research or check-in to the `feedback` store.
-5. Every `/api/*` function calls `requireUser()`; uploads store their `owner` and only that user can read them or their reports. `/api/profile` holds the Depop handle and latest upload id.
+5. Every `/api/*` function calls `requireUser()`; uploads store their `owner` and only that user can read them or their reports. `/api/profile` holds the Depop handle and latest upload id. `PATCH /api/uploads/<id>` saves listing counts per category (`<id>/listings.json`); the report runner turns them into sell-through for the Trend Analyst.
 
 Login does not work under `netlify dev`; test it on a deploy preview.
 

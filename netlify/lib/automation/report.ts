@@ -4,7 +4,8 @@ import { runForecaster, type Forecast } from "../agents/forecaster";
 import { runMarketResearcher, type MarketResearch } from "../agents/marketResearcher";
 import { reviewForecast, runTrendAnalyst, type ForecastReview, type TrendReport } from "../agents/trendAnalyst";
 import { loadFeedback } from "./feedback";
-import { loadSales, loadUpload } from "./storage";
+import { calculateSellThrough } from "./metrics";
+import { loadListings, loadSales, loadUpload } from "./storage";
 
 type StepStatus = "waiting" | "running" | "done" | "failed";
 
@@ -53,10 +54,11 @@ export async function queueReport(uploadId: string): Promise<Report> {
 
 export async function runReport(uploadId: string): Promise<void> {
   const report = (await loadReport(uploadId)) ?? (await queueReport(uploadId));
-  const [upload, sales, feedback] = await Promise.all([
+  const [upload, sales, feedback, listings] = await Promise.all([
     loadUpload(uploadId),
     loadSales(uploadId),
     loadFeedback(uploadId),
+    loadListings(uploadId),
   ]);
   const today = new Date().toISOString().slice(0, 10);
 
@@ -76,7 +78,8 @@ export async function runReport(uploadId: string): Promise<void> {
     if (!upload || !sales) throw new Error("Upload not found.");
     const { metrics } = upload;
 
-    report.trends = await step("trends", () => runTrendAnalyst(metrics, sales));
+    const sellThrough = listings ? calculateSellThrough(metrics, listings.counts) : null;
+    report.trends = await step("trends", () => runTrendAnalyst(metrics, sales, sellThrough));
     report.steps.trends = "done";
 
     report.research = await step("research", () =>
