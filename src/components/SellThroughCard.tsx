@@ -19,11 +19,13 @@ export default function SellThroughCard({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  // Live preview from what's typed so far; only valid counts are used.
+  // Live preview from what's typed so far; only valid counts are used (whole numbers, at least the number sold).
+  const soldByCategory = new Map(categories.map((category) => [category.name, category.itemsSold]));
+  const tooLow = (name: string) => listed[name] !== "" && Number(listed[name]) < (soldByCategory.get(name) ?? 0);
   const typed = Object.fromEntries(
     Object.entries(listed)
       .map(([name, value]) => [name, Number(value)] as const)
-      .filter(([, count]) => Number.isInteger(count) && count > 0),
+      .filter(([name, count]) => Number.isInteger(count) && count > 0 && count >= (soldByCategory.get(name) ?? 0)),
   );
   const preview = calculateSellThrough(upload.metrics, typed);
   const rateByCategory = new Map(preview?.categories.map((category) => [category.name, category]) ?? []);
@@ -93,7 +95,9 @@ export default function SellThroughCard({
                   />
                 </td>
                 <td className="py-1.5 pl-4">
-                  {result ? (
+                  {tooLow(category.name) ? (
+                    <span className="text-red-700">At least {category.itemsSold} (you sold that many)</span>
+                  ) : result ? (
                     <div className="flex items-center gap-2">
                       <div className="h-2 flex-1 rounded-full bg-stone-100">
                         <div
