@@ -1,7 +1,8 @@
 // Browser-side calls to our Netlify Functions.
+import type { Report } from "../../netlify/lib/automation/report";
 import type { Upload } from "../../netlify/lib/automation/storage";
 
-export type { Upload };
+export type { Report, Upload };
 
 const LATEST_UPLOAD_KEY = "latestUploadId";
 
@@ -21,6 +22,22 @@ export async function getUpload(id: string): Promise<Upload> {
   const response = await fetch(`/api/uploads/${id}`);
   const body = await response.json();
   if (!response.ok) throw new Error(body.error ?? "Couldn't load that upload.");
+  return body;
+}
+
+// Returns null when no report has been started for this upload yet.
+export async function getReport(uploadId: string): Promise<Report | null> {
+  const response = await fetch(`/api/reports/${uploadId}`);
+  if (response.status === 404) return null;
+  const body = await response.json();
+  if (!response.ok) throw new Error(body.error ?? "Couldn't load the report.");
+  return body;
+}
+
+export async function startReport(uploadId: string): Promise<Report> {
+  const response = await fetch(`/api/reports/${uploadId}`, { method: "POST" });
+  const body = await response.json();
+  if (!response.ok) throw new Error(body.error ?? "Couldn't start the report.");
   return body;
 }
 
