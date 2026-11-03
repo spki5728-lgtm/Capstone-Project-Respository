@@ -30,7 +30,7 @@ export default async (req: Request) => {
   if (isInProgress(existing)) return Response.json(withoutSecrets(existing!));
 
   // Count the report against the user's plan first; give it back if it doesn't start.
-  const allowed = await useReport(user.id);
+  const allowed = await useReport(user.id, user.roles);
   if (!allowed.ok) {
     return Response.json({ error: allowed.message, code: allowed.code }, { status: allowed.code === "upgrade_required" ? 402 : 429 });
   }

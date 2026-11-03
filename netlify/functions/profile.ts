@@ -12,7 +12,7 @@ export default async (req: Request) => {
   if (user instanceof Response) return user;
 
   if (req.method === "GET") {
-    const [profile, plan] = await Promise.all([loadProfile(user.id), loadPlan(user.id)]);
+    const [profile, plan] = await Promise.all([loadProfile(user.id), loadPlan(user.id, user.roles)]);
     return Response.json({ ...profile, plan });
   }
   if (req.method !== "PUT") return Response.json({ error: "Use GET or PUT." }, { status: 405 });
@@ -22,7 +22,7 @@ export default async (req: Request) => {
   if (handle && !HANDLE.test(handle)) {
     return Response.json({ error: "That doesn't look like a Depop username." }, { status: 400 });
   }
-  const [profile, plan] = await Promise.all([updateProfile(user.id, { depopHandle: handle || undefined }), loadPlan(user.id)]);
+  const [profile, plan] = await Promise.all([updateProfile(user.id, { depopHandle: handle || undefined }), loadPlan(user.id, user.roles)]);
   return Response.json({ ...profile, plan });
 };
 

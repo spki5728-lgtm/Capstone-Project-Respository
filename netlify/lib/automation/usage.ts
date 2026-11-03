@@ -10,8 +10,12 @@ export const MEMBERSHIP_PRICE = "$12.99/year";
 
 type Usage = { reportsStarted: number; day: string; reportsToday: number; uploadsToday: number };
 
-// Set by the payment provider once checkout is connected (see CLAUDE.md). Until then nobody is a member.
+// Set by the payment provider once checkout is connected (see CLAUDE.md).
 export type Membership = { activeUntil: string };
+
+// Accounts given the "member" role in the Netlify Identity dashboard are members too (comped accounts,
+// like the owner's). Only the dashboard or admin API can set roles; users can't give it to themselves.
+export const MEMBER_ROLE = "member";
 
 export type Plan = {
   member: boolean;
@@ -37,7 +41,8 @@ function fresh(usage: Usage | undefined): Usage {
   return base.day === today() ? base : { ...base, day: today(), reportsToday: 0, uploadsToday: 0 };
 }
 
-async function isMember(userId: string): Promise<boolean> {
+async function isMember(userId: string, roles: string[] = []): Promise<boolean> {
+  if (roles.includes(MEMBER_ROLE)) return true;
   const membership: Membership | null = await membershipStore().get(userId, { type: "json" });
   return Boolean(membership && Date.parse(membership.activeUntil) > Date.now());
 }
@@ -57,8 +62,8 @@ async function updateUsage(userId: string, change: (usage: Usage) => LimitResult
   return { ok: false, code: "daily_limit", message: "Too many requests at once. Try again in a moment." };
 }
 
-export async function useReport(userId: string): Promise<LimitResult> {
-  const member = await isMember(userId);
+export async function useReport(userId: string, roles?: string[]): Promise<LimitResult> {
+  const member = await isMember(userId, roles);
   return updateUsage(userId, (usage) => {
     if (!member && usage.reportsStarted >= FREE_REPORTS) {
       return {
@@ -93,8 +98,8 @@ export async function useUpload(userId: string): Promise<LimitResult> {
   );
 }
 
-export async function loadPlan(userId: string): Promise<Plan> {
-  const [member, stored] = await Promise.all([isMember(userId), usageStore().get(userId, { type: "json" })]);
+export async function loadPlan(userId: string, roles?: string[]): Promise<Plan> {
+  const [member, stored] = await Promise.all([isMember(userId, roles), usageStore().get(userId, { type: "json" })]);
   const usage = fresh(stored as Usage | undefined);
   return {
     member,

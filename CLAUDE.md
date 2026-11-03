@@ -57,7 +57,7 @@ AI Gateway rejects calls from `netlify dev` on this machine ("Mismatched source 
 ## Rules
 
 - **No secrets anywhere.** No API keys in code, config, commits, or `.env` files. (When checkout is connected, its webhook secret goes only in Netlify's environment variables.)
-- **Limits on paid work** (`netlify/lib/automation/usage.ts`): free accounts get 2 AI reports in total, members ($12.99/year, auto-renewing) up to 10 a day, everyone 20 uploads a day. A failed report is refunded. Membership lives in the `memberships` Blobs store (`{ activeUntil }`); nothing writes it yet because checkout isn't connected.
+- **Limits on paid work** (`netlify/lib/automation/usage.ts`): free accounts get 2 AI reports in total, members ($12.99/year, auto-renewing) up to 10 a day, everyone 20 uploads a day. A failed report is refunded. Membership comes from the `memberships` Blobs store (`{ activeUntil }`, for future checkout) or the Netlify Identity role `member` (set in the Identity dashboard for comped accounts; takes effect at the user's next login).
 - **Report runs are claimed, not just started.** `POST /api/reports/<id>` claims the run with a conditional Blobs write and stores a one-time `runToken`; `run-report-background` does nothing without that token, and uses it up. Never send `runToken` to the browser (`withoutSecrets`).
 - **Seller text is data, not instructions.** Wrap anything from the CSV, notes or earlier agents in `sellerData()`; every agent's system prompt ends with `DATA_RULE`.
 - **Errors shown to users** are only `UserFacingError` messages (`netlify/lib/errors.ts`); everything else is logged and replaced with a generic message.
