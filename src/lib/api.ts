@@ -1,58 +1,70 @@
-// Browser-side calls to our Netlify Functions.
+// Browser-side calls to our Netlify Functions. The login cookie is sent automatically.
+import type { Feedback } from "../../netlify/lib/automation/feedback";
 import type { Report } from "../../netlify/lib/automation/report";
-import type { Upload } from "../../netlify/lib/automation/storage";
+import type { Profile, Upload } from "../../netlify/lib/automation/storage";
 
-export type { Report, Upload };
+export type { Feedback, Profile, Report, Upload };
+export type ReportWithFeedback = Report & { feedback: Feedback };
 
-const LATEST_UPLOAD_KEY = "latestUploadId";
-
-export async function uploadCsv(csv: string, fileName: string): Promise<Upload> {
-  const response = await fetch("/api/upload", {
-    method: "POST",
-    headers: { "content-type": "text/csv", "x-file-name": fileName },
-    body: csv,
-  });
+async function call<T>(path: string, init?: RequestInit, fallbackError = "Something went wrong."): Promise<T> {
+  const response = await fetch(path, init);
   const body = await response.json();
-  if (!response.ok) throw new Error(body.error ?? "Upload failed.");
-  rememberUpload(body.id);
+  if (!response.ok) throw new Error(body.error ?? fallbackError);
   return body;
 }
 
-export async function getUpload(id: string): Promise<Upload> {
-  const response = await fetch(`/api/uploads/${id}`);
-  const body = await response.json();
-  if (!response.ok) throw new Error(body.error ?? "Couldn't load that upload.");
-  return body;
+function sendJson(method: string, body: unknown): RequestInit {
+  return { method, headers: { "content-type": "application/json" }, body: JSON.stringify(body) };
+}
+
+export async function uploadCsv(csv: string, fileName: string): Promise<Upload> {
+  return call<Upload>(
+    "/api/upload",
+    { method: "POST", headers: { "content-type": "text/csv", "x-file-name": fileName }, body: csv },
+    "Upload failed.",
+  );
+}
+
+export function getUpload(id: string): Promise<Upload> {
+  return call(`/api/uploads/${id}`, undefined, "Couldn't load that upload.");
 }
 
 // Returns null when no report has been started for this upload yet.
-export async function getReport(uploadId: string): Promise<Report | null> {
+export async function getReport(uploadId: string): Promise<ReportWithFeedback | null> {
   const response = await fetch(`/api/reports/${uploadId}`);
-  if (response.status === 404) return null;
+  if (response.status === 404) {
+    const body = await response.json();
+    if (body.error === "No report yet.") return null;
+    throw new Error(body.error);
+  }
   const body = await response.json();
   if (!response.ok) throw new Error(body.error ?? "Couldn't load the report.");
   return body;
 }
 
-export async function startReport(uploadId: string): Promise<Report> {
-  const response = await fetch(`/api/reports/${uploadId}`, { method: "POST" });
-  const body = await response.json();
-  if (!response.ok) throw new Error(body.error ?? "Couldn't start the report.");
-  return body;
+export function startReport(uploadId: string): Promise<Report> {
+  return call(`/api/reports/${uploadId}`, { method: "POST" }, "Couldn't start the report.");
 }
 
-export function latestUploadId(): string | null {
-  try {
-    return localStorage.getItem(LATEST_UPLOAD_KEY);
-  } catch {
-    return null;
-  }
+export function saveHumanResearch(uploadId: string, notes: string): Promise<Feedback> {
+  return call(`/api/reports/${uploadId}`, sendJson("PATCH", { humanResearch: notes }), "Couldn't save your research.");
 }
 
-function rememberUpload(id: string) {
-  try {
-    localStorage.setItem(LATEST_UPLOAD_KEY, id);
-  } catch {
-    // Private browsing can block storage; the id is still in the URL.
-  }
+export function saveCheckIn(
+  uploadId: string,
+  checkIn: { actualRevenue: number; actualItems: number; rating: string; comment: string },
+): Promise<Feedback> {
+  return call(`/api/reports/${uploadId}`, sendJson("PATCH", { checkIn }), "Couldn't save your check-in.");
+}
+
+export function getProfile(): Promise<Profile> {
+  return call("/api/profile", undefined, "Couldn't load your profile.");
+}
+
+export function saveDepopHandle(depopHandle: string): Promise<Profile> {
+  return call("/api/profile", sendJson("PUT", { depopHandle }), "Couldn't save your Depop handle.");
+}
+
+export function depopShopUrl(handle: string): string {
+  return `https://www.depop.com/${handle}/`;
 }

@@ -1,13 +1,16 @@
 import { ArrowRight, CircleDollarSign, Package, Tag, Wallet, type LucideIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router";
+import DepopShopCard from "../components/DepopShopCard";
 import WeeklyRevenueChart from "../components/WeeklyRevenueChart";
-import { getUpload, latestUploadId, type Upload } from "../lib/api";
+import { getUpload, type Upload } from "../lib/api";
 import { formatDate, formatMoney } from "../lib/format";
+import { useProfile } from "../lib/profile";
 
 export default function DashboardPage() {
   const [searchParams] = useSearchParams();
-  const id = searchParams.get("id") ?? latestUploadId();
+  const { profile } = useProfile();
+  const id = searchParams.get("id") ?? profile?.latestUploadId;
   const [upload, setUpload] = useState<Upload | null>(null);
   const [error, setError] = useState("");
 
@@ -18,6 +21,7 @@ export default function DashboardPage() {
       .catch((err) => setError(err instanceof Error ? err.message : "Couldn't load your sales."));
   }, [id]);
 
+  if (!profile && !id) return <Empty>Loading your sales…</Empty>;
   if (!id) {
     return (
       <Empty>
@@ -34,7 +38,8 @@ export default function DashboardPage() {
 
   return (
     <section>
-      <div className="flex flex-wrap items-end justify-between gap-2">
+      <DepopShopCard />
+      <div className="mt-8 flex flex-wrap items-end justify-between gap-2">
         <div>
           <h2 className="text-3xl font-extrabold tracking-tight">Your sales</h2>
           <p className="mt-1 text-sm text-stone-500">
@@ -139,7 +144,8 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
 function Empty({ children }: { children: React.ReactNode }) {
   return (
     <section>
-      <h2 className="text-3xl font-extrabold tracking-tight">Your sales</h2>
+      <DepopShopCard />
+      <h2 className="mt-8 text-3xl font-extrabold tracking-tight">Your sales</h2>
       <p className="card mt-6 p-10 text-center text-stone-600">{children}</p>
     </section>
   );

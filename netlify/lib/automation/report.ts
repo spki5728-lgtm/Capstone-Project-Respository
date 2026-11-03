@@ -2,7 +2,8 @@
 import { getStore } from "@netlify/blobs";
 import { runForecaster, type Forecast } from "../agents/forecaster";
 import { runMarketResearcher, type MarketResearch } from "../agents/marketResearcher";
-import { runTrendAnalyst, type TrendReport } from "../agents/trendAnalyst";
+import { reviewForecast, runTrendAnalyst, type ForecastReview, type TrendReport } from "../agents/trendAnalyst";
+import { loadFeedback } from "./feedback";
 import { loadSales, loadUpload } from "./storage";
 
 type StepStatus = "waiting" | "running" | "done" | "failed";
@@ -13,10 +14,11 @@ export type Report = {
   startedAt: string;
   finishedAt?: string;
   error?: string;
-  steps: { trends: StepStatus; research: StepStatus; forecast: StepStatus };
+  steps: { trends: StepStatus; research: StepStatus; forecast: StepStatus; review: StepStatus };
   trends?: TrendReport;
   research?: MarketResearch;
   forecast?: Forecast;
+  review?: ForecastReview; // the Trend Analyst's check of the forecast
 };
 
 // A run that hasn't finished after this long is treated as dead and can be restarted.
@@ -43,7 +45,7 @@ export async function queueReport(uploadId: string): Promise<Report> {
     uploadId,
     status: "running",
     startedAt: new Date().toISOString(),
-    steps: { trends: "waiting", research: "waiting", forecast: "waiting" },
+    steps: { trends: "waiting", research: "waiting", forecast: "waiting", review: "waiting" },
   };
   await saveReport(report);
   return report;
@@ -51,7 +53,11 @@ export async function queueReport(uploadId: string): Promise<Report> {
 
 export async function runReport(uploadId: string): Promise<void> {
   const report = (await loadReport(uploadId)) ?? (await queueReport(uploadId));
-  const [upload, sales] = await Promise.all([loadUpload(uploadId), loadSales(uploadId)]);
+  const [upload, sales, feedback] = await Promise.all([
+    loadUpload(uploadId),
+    loadSales(uploadId),
+    loadFeedback(uploadId),
+  ]);
   const today = new Date().toISOString().slice(0, 10);
 
   // Runs one agent, marking its step running, then done or failed.
@@ -73,13 +79,18 @@ export async function runReport(uploadId: string): Promise<void> {
     report.trends = await step("trends", () => runTrendAnalyst(metrics, sales));
     report.steps.trends = "done";
 
-    report.research = await step("research", () => runMarketResearcher(metrics, report.trends!, today));
+    report.research = await step("research", () =>
+      runMarketResearcher(metrics, report.trends!, today, feedback.humanResearch?.notes),
+    );
     report.steps.research = "done";
 
     report.forecast = await step("forecast", () =>
       runForecaster(metrics, report.trends!, report.research!, today),
     );
     report.steps.forecast = "done";
+
+    report.review = await step("review", () => reviewForecast(metrics, report.trends!, report.forecast!));
+    report.steps.review = "done";
 
     report.status = "done";
   } catch (error) {
