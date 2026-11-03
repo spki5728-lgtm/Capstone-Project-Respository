@@ -79,7 +79,7 @@ export default function ReportPage() {
       {!report && (
         <Box>
           Three AI agents will study your sales, research the resale market, and forecast your next 30 days. It
-          takes about a minute.
+          takes about a minute and a half.
         </Box>
       )}
 
