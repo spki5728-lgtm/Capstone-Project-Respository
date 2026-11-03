@@ -9,6 +9,7 @@ export type MarketResearch = {
   sourcing: { item: string; why: string; buyUnder: number; sellFor: number }[];
   pricing: { segment: string; advice: string }[];
   sources: { title: string; url: string }[];
+  searchProblems: string[]; // error codes from web search, if it failed
 };
 
 const SYSTEM = `You are the Market Researcher for a Depop reseller. Using web search, you check what is in demand on resale apps right now and what comparable items sell for, then turn that into concrete sourcing and pricing advice for this seller.
@@ -93,23 +94,30 @@ Research the current resale market for this seller and recommend what to source 
       continue;
     }
 
-    const research = parseJsonReply<Omit<MarketResearch, "sources">>(response);
-    return { ...research, sources: collectSources(messages, response) };
+    const research = parseJsonReply<Omit<MarketResearch, "sources" | "searchProblems">>(response);
+    return { ...research, ...collectSearchResults(messages, response) };
   }
   throw new Error("Market research took too many steps.");
 }
 
-// The search results Claude read, deduplicated, so the report can link to them.
-function collectSources(messages: Anthropic.MessageParam[], last: Anthropic.Message) {
+// The search results Claude read, deduplicated so the report can link to them, plus any search errors.
+function collectSearchResults(messages: Anthropic.MessageParam[], last: Anthropic.Message) {
   const blocks = [
     ...messages.flatMap((message) => (Array.isArray(message.content) ? message.content : [])),
     ...last.content,
   ];
   const sources = new Map<string, string>();
+  const searchProblems: string[] = [];
   for (const block of blocks) {
-    if (block.type === "web_search_tool_result" && Array.isArray(block.content)) {
+    if (block.type !== "web_search_tool_result") continue;
+    if (Array.isArray(block.content)) {
       for (const result of block.content) sources.set(result.url, result.title);
+    } else {
+      searchProblems.push(block.content.error_code);
     }
   }
-  return [...sources].slice(0, 8).map(([url, title]) => ({ url, title }));
+  return {
+    sources: [...sources].slice(0, 8).map(([url, title]) => ({ url, title })),
+    searchProblems,
+  };
 }
