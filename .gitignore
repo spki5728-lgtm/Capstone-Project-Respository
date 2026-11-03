@@ -3,6 +3,9 @@ dist/
 .netlify/
 .DS_Store
 
+# Netlify CLI installs these coding-assistant guides on `netlify init`
+.claude/skills/
+
 # No env files in this project, but never commit one by accident
 .env
 .env.*
