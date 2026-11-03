@@ -1,11 +1,13 @@
-// Runs the three agents in order and saves progress to Netlify Blobs after each one.
+// Runs the agents in order and saves progress to Netlify Blobs after each one.
 import { getStore } from "@netlify/blobs";
 import { runForecaster, type Forecast } from "../agents/forecaster";
 import { runMarketResearcher, type MarketResearch } from "../agents/marketResearcher";
 import { reviewForecast, runTrendAnalyst, type ForecastReview, type TrendReport } from "../agents/trendAnalyst";
+import { publicMessage } from "../errors";
 import { loadFeedback } from "./feedback";
 import { calculateSellThrough } from "./metrics";
 import { loadListings, loadSales, loadUpload } from "./storage";
+import { refundReport } from "./usage";
 
 type StepStatus = "waiting" | "running" | "done" | "failed";
 
@@ -20,6 +22,7 @@ export type Report = {
   research?: MarketResearch;
   forecast?: Forecast;
   review?: ForecastReview; // the Trend Analyst's check of the forecast
+  runToken?: string; // one-time token the background function must present; never sent to the browser
 };
 
 // A run that hasn't finished after this long is treated as dead and can be restarted.
@@ -33,6 +36,15 @@ export async function loadReport(uploadId: string): Promise<Report | null> {
   return reports().get(uploadId, { type: "json" });
 }
 
+export async function deleteReport(uploadId: string) {
+  await reports().delete(uploadId);
+}
+
+export function withoutSecrets(report: Report): Report {
+  const { runToken: _token, ...safe } = report;
+  return safe;
+}
+
 function saveReport(report: Report) {
   return reports().setJSON(report.uploadId, report);
 }
@@ -41,19 +53,45 @@ export function isInProgress(report: Report | null): boolean {
   return report?.status === "running" && Date.now() - Date.parse(report.startedAt) < STALE_AFTER_MS;
 }
 
-export async function queueReport(uploadId: string): Promise<Report> {
+// Claims the right to run a report for this upload. Uses a conditional write, so if two requests race,
+// only one gets `started: true`; the other gets the report that won.
+export async function claimReportRun(uploadId: string): Promise<{ started: boolean; report: Report }> {
+  const store = reports();
+  const current = await store.getWithMetadata(uploadId, { type: "json" });
+  const existing = (current?.data as Report | undefined) ?? null;
+  if (existing && isInProgress(existing)) return { started: false, report: existing };
+
   const report: Report = {
     uploadId,
     status: "running",
     startedAt: new Date().toISOString(),
     steps: { trends: "waiting", research: "waiting", forecast: "waiting", review: "waiting" },
+    runToken: crypto.randomUUID(),
   };
-  await saveReport(report);
-  return report;
+  const result = current?.etag
+    ? await store.setJSON(uploadId, report, { onlyIfMatch: current.etag })
+    : await store.setJSON(uploadId, report, { onlyIfNew: true });
+  if (result.modified) return { started: true, report };
+  return { started: false, report: (await loadReport(uploadId)) ?? report };
 }
 
-export async function runReport(uploadId: string): Promise<void> {
-  const report = (await loadReport(uploadId)) ?? (await queueReport(uploadId));
+export async function failReport(uploadId: string, message: string) {
+  const report = await loadReport(uploadId);
+  if (!report) return;
+  await saveReport({ ...withoutSecrets(report), status: "failed", error: message, finishedAt: new Date().toISOString() });
+}
+
+// Runs only when called with the token from claimReportRun, and only once per token.
+export async function runReport(uploadId: string, token: string): Promise<void> {
+  const store = reports();
+  const current = await store.getWithMetadata(uploadId, { type: "json" });
+  const claimed = current?.data as Report | undefined;
+  if (!claimed || !current?.etag || claimed.status !== "running" || claimed.runToken !== token) return;
+
+  // Use up the token so the same request can't start a second run.
+  const report = withoutSecrets(claimed);
+  if (!(await store.setJSON(uploadId, report, { onlyIfMatch: current.etag })).modified) return;
+
   const [upload, sales, feedback, listings] = await Promise.all([
     loadUpload(uploadId),
     loadSales(uploadId),
@@ -97,9 +135,10 @@ export async function runReport(uploadId: string): Promise<void> {
 
     report.status = "done";
   } catch (error) {
-    console.error("Report failed", uploadId, error);
     report.status = "failed";
-    report.error = error instanceof Error ? error.message : "Something went wrong.";
+    report.error = publicMessage(error, "Something went wrong while generating your report. Try again.");
+    // A failed run doesn't use up one of the seller's reports.
+    if (upload) await refundReport(upload.owner);
   }
   report.finishedAt = new Date().toISOString();
   await saveReport(report);

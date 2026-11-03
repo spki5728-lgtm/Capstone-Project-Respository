@@ -54,7 +54,14 @@ export default function LoginPage() {
             <>
               <button
                 type="button"
-                onClick={() => oauthLogin("google")}
+                onClick={() => {
+                  // oauthLogin redirects the page to Google and throws to stop the click handler; that's expected.
+                  try {
+                    oauthLogin("google");
+                  } catch {
+                    // Redirecting.
+                  }
+                }}
                 className="flex w-full items-center justify-center gap-2 rounded-full border border-stone-300 bg-white px-4 py-2.5 text-sm font-semibold transition hover:bg-stone-50"
               >
                 <GoogleIcon /> Continue with Google

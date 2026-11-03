@@ -1,6 +1,6 @@
 // Forecaster: projects the next 30 days of sales from the seller's history, trends and market research.
 import type { Metrics } from "../automation/metrics";
-import { askForJson } from "./claude";
+import { askForJson, sellerData } from "./claude";
 import type { MarketResearch } from "./marketResearcher";
 import type { TrendReport } from "./trendAnalyst";
 
@@ -70,11 +70,11 @@ export async function runForecaster(
 Baseline from the last weeks of sales: ${JSON.stringify(baselineFrom(metrics))}
 (30 days is about 4.3 weeks.)
 
-Weekly history: ${JSON.stringify(metrics.weekly)}
+Weekly history: ${sellerData(metrics.weekly)}
 Last sale in the data: ${metrics.lastSale}
 
-Trend Analyst: ${JSON.stringify(trends)}
+Trend Analyst: ${sellerData(trends)}
 
-Market Researcher: ${JSON.stringify(researchFindings)}`,
+Market Researcher: ${sellerData(researchFindings)}`,
   });
 }

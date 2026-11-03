@@ -48,7 +48,7 @@ Shared code goes in `netlify/lib/`, never in `netlify/functions/`, so helpers ar
 2. **Automation** cleans the CSV, calculates metrics in code, and saves raw CSV, clean sales, and metrics to the `uploads` Blobs store under `<id>/`. Dashboard loads them from `/api/uploads/<id>`.
 3. Report page POSTs `/api/reports/<id>`, which starts the `run-report-background` function. **Automation** runs Trend Analyst → Market Researcher (with the seller's own notes, if any) → Forecaster → Trend Analyst review, and saves progress after each step to the `reports` Blobs store.
 4. Report page polls `GET /api/reports/<id>` every 3 seconds and shows each section as it finishes. `PATCH /api/reports/<id>` saves the seller's research or check-in to the `feedback` store.
-5. Every `/api/*` function calls `requireUser()`; uploads store their `owner` and only that user can read them or their reports. `/api/profile` holds the Depop handle and latest upload id. `PATCH /api/uploads/<id>` saves listing counts per category (`<id>/listings.json`); the report runner turns them into sell-through for the Trend Analyst.
+5. `GET /api/uploads` lists the user's uploads (ids kept newest first in their profile). Every `/api/*` function calls `requireUser()`; uploads store their `owner` and only that user can read them or their reports. `/api/profile` holds the Depop handle and latest upload id. `PATCH /api/uploads/<id>` saves listing counts per category (`<id>/listings.json`); the report runner turns them into sell-through for the Trend Analyst.
 
 Login does not work under `netlify dev`; test it on a deploy preview.
 
@@ -56,7 +56,13 @@ AI Gateway rejects calls from `netlify dev` on this machine ("Mismatched source 
 
 ## Rules
 
-- **No secrets anywhere.** No API keys in code, config, commits, or `.env` files.
+- **No secrets anywhere.** No API keys in code, config, commits, or `.env` files. (When checkout is connected, its webhook secret goes only in Netlify's environment variables.)
+- **Limits on paid work** (`netlify/lib/automation/usage.ts`): free accounts get 2 AI reports in total, members ($12.99/year, auto-renewing) up to 10 a day, everyone 20 uploads a day. A failed report is refunded. Membership lives in the `memberships` Blobs store (`{ activeUntil }`); nothing writes it yet because checkout isn't connected.
+- **Report runs are claimed, not just started.** `POST /api/reports/<id>` claims the run with a conditional Blobs write and stores a one-time `runToken`; `run-report-background` does nothing without that token, and uses it up. Never send `runToken` to the browser (`withoutSecrets`).
+- **Seller text is data, not instructions.** Wrap anything from the CSV, notes or earlier agents in `sellerData()`; every agent's system prompt ends with `DATA_RULE`.
+- **Errors shown to users** are only `UserFacingError` messages (`netlify/lib/errors.ts`); everything else is logged and replaced with a generic message.
+- **Keep what's stored small.** The raw CSV is never stored; dates before 2011 or in the future are skipped; weekly metrics cover at most 104 weeks; text fields are capped at 120 characters. Sellers can delete any upload (`DELETE /api/uploads/<id>`), which also deletes its report, feedback and listing counts.
+- **Security headers** (CSP and friends) are set in `netlify.toml`. Only add a domain to the CSP when a feature needs it.
 - **AI Gateway handles Claude credentials.** Create the client as `new Anthropic()` with no arguments, only inside Netlify Functions code. Never set `ANTHROPIC_API_KEY` or `ANTHROPIC_BASE_URL` yourself; a value you set overrides the gateway's.
 - **Claude is never called from the browser.**
 - **Keep automation and agents separate.** Agents receive prepared inputs and return results; they never read or write Blobs. Automation owns data cleanup, storage, and running the agents. Automation calls agents' exported functions; agents import only types from automation.

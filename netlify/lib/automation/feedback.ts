@@ -28,3 +28,7 @@ export async function updateFeedback(uploadId: string, changes: Feedback): Promi
   await feedback().setJSON(uploadId, updated);
   return updated;
 }
+
+export async function deleteFeedback(uploadId: string) {
+  await feedback().delete(uploadId);
+}
