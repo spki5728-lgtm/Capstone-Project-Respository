@@ -1,0 +1,19 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "26"
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
+[dev]
+  framework = "vite"
+
+# Send every page route to the React app so reloading /dashboard or /report works
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
