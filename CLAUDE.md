@@ -26,18 +26,19 @@ src/                     React app
   components/            Shared UI (Layout with nav)
 netlify/
   functions/             HTTP endpoints only; every file here is deployed as a function
-  lib/automation/        (planned) CSV cleanup, metric calculation, running the agents, scheduled refresh
+  lib/automation/        csv.ts (cleanup), metrics.ts (calculations), storage.ts (Blobs);
+                         (planned) running the agents, scheduled refresh
   lib/agents/            (planned) Trend Analyst, Market Researcher, Forecaster
 raw-data/                Local sales exports; gitignored except demo.csv
 ```
 
 Shared code goes in `netlify/lib/`, never in `netlify/functions/`, so helpers are not deployed as endpoints.
 
-## How the pieces fit (planned)
+## How the pieces fit
 
-1. Upload page sends the CSV to a function.
-2. **Automation** cleans the CSV, calculates metrics in code, and saves both to Blobs.
-3. **Automation** starts a background function that runs Trend Analyst → Market Researcher → Forecaster and saves each result to Blobs.
+1. Upload page POSTs the CSV text to `/api/upload` (or sends `raw-data/demo.csv` via "Try the demo data").
+2. **Automation** cleans the CSV, calculates metrics in code, and saves raw CSV, clean sales, and metrics to the `uploads` Blobs store under `<id>/`. Dashboard loads them from `/api/uploads/<id>`.
+3. (planned) **Automation** starts a background function that runs Trend Analyst → Market Researcher → Forecaster and saves each result to Blobs.
 4. Dashboard reads the metrics. Report shows agent progress, then the finished report.
 
 ## Rules
