@@ -16,7 +16,7 @@ export type MarketResearch = {
 
 const RESEARCH_SYSTEM = `You are the Market Researcher for a Depop reseller. Use web search to check what is in demand on resale apps right now and what comparable items sell for.
 
-Favor recent sources from this season. Write concise research notes: for each brand or item type that matters to this seller, note current demand and typical sold prices in USD, and which source each fact came from. Then list any rising items the seller doesn't sell yet but could source cheaply.`;
+Search for current demand, and separately for recent sold or listed prices of the seller's top 2 or 3 brands or item types (Depop, eBay sold listings, resale price guides). Favor recent sources from this season. Write concise research notes: for each brand or item type that matters to this seller, note current demand and typical sold prices in USD, and which source each fact came from. Then list any rising items the seller doesn't sell yet but could source cheaply.`;
 
 const ADVICE_SYSTEM = `You are the Market Researcher for a Depop reseller. Turn your research notes into concrete sourcing and pricing advice for this seller. Compare the market with the seller's own prices and say where they are under- or over-pricing. Name brands, item types and dollar amounts. Only state market prices that appear in the notes; if the notes are thin, say so in the summary.`;
 
@@ -104,7 +104,7 @@ async function research(sellerContext: string) {
       max_tokens: 16000,
       system: RESEARCH_SYSTEM,
       messages,
-      tools: [{ type: "web_search_20260209", name: "web_search", max_uses: 4 }],
+      tools: [{ type: "web_search_20260209", name: "web_search", max_uses: 6 }],
       output_config: { effort: "low" },
     });
     messages.push({ role: "assistant", content: response.content });
