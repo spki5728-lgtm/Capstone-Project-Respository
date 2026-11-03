@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.netlify/
+.DS_Store
+
+# No env files in this project, but never commit one by accident
+.env
+.env.*
+
+# Real seller exports stay local; only the demo file is committed
+raw-data/*
+!raw-data/demo.csv
