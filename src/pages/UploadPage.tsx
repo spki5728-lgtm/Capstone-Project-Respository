@@ -4,6 +4,7 @@ import { useNavigate } from "react-router";
 import demoCsv from "../../raw-data/demo.csv?raw";
 import UploadsList from "../components/UploadsList";
 import { uploadCsv } from "../lib/api";
+import { useProfile } from "../lib/profile";
 
 const AGENTS = [
   { icon: TrendingUp, name: "Trend Analyst", blurb: "Finds what sells, when, and for how much." },
@@ -13,6 +14,7 @@ const AGENTS = [
 
 export default function UploadPage() {
   const navigate = useNavigate();
+  const { refreshProfile } = useProfile();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [dragging, setDragging] = useState(false);
@@ -22,6 +24,8 @@ export default function UploadPage() {
     setError("");
     try {
       const upload = await uploadCsv(csv, fileName);
+      // The new upload becomes the latest one, so the Dashboard and AI Report links point to it.
+      await refreshProfile();
       navigate(`/dashboard?id=${upload.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload failed.");

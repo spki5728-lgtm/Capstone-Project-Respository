@@ -15,7 +15,7 @@ import { Link, useSearchParams } from "react-router";
 import CheckInCard from "../components/CheckInCard";
 import HumanResearchCard from "../components/HumanResearchCard";
 import UpgradeCard from "../components/UpgradeCard";
-import { ApiError, getReport, startReport, type Feedback, type Report, type ReportWithFeedback } from "../lib/api";
+import { ApiError, getReport, getUpload, startReport, type Feedback, type Report, type ReportWithFeedback } from "../lib/api";
 import { formatMoney } from "../lib/format";
 import { useProfile } from "../lib/profile";
 
@@ -43,10 +43,22 @@ export default function ReportPage() {
   const [searchParams] = useSearchParams();
   const { profile, refreshProfile } = useProfile();
   const [needsUpgrade, setNeedsUpgrade] = useState(false);
+  const [fileName, setFileName] = useState("");
   const id = searchParams.get("id") ?? profile?.latestUploadId;
   const [report, setReport] = useState<ReportWithFeedback | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState("");
+
+  // Which file this report is for, shown under the title. Switching files clears the old file's report first.
+  useEffect(() => {
+    setReport(null);
+    setLoaded(false);
+    setNeedsUpgrade(false);
+    if (!id) return;
+    getUpload(id)
+      .then((upload) => setFileName(upload.fileName))
+      .catch(() => setFileName(""));
+  }, [id]);
 
   // Load the report, and keep polling every 3 seconds while the agents are working.
   useEffect(() => {
@@ -105,6 +117,7 @@ export default function ReportPage() {
 
   return (
     <Shell
+      fileName={fileName}
       action={
         report?.status !== "running" &&
         !outOfFreeReports && (
@@ -384,13 +397,29 @@ function Section({
   );
 }
 
-function Shell({ action, children }: { action?: React.ReactNode; children: React.ReactNode }) {
+function Shell({
+  action,
+  fileName,
+  children,
+}: {
+  action?: React.ReactNode;
+  fileName?: string;
+  children: React.ReactNode;
+}) {
   return (
     <section>
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="text-3xl font-extrabold tracking-tight">AI Report</h2>
           <p className="mt-1 text-stone-600">Trends, a 30-day forecast, and sourcing and pricing recommendations.</p>
+          {fileName && (
+            <p className="mt-1 text-sm text-stone-500">
+              For <span className="font-semibold text-stone-700">{fileName}</span> ·{" "}
+              <Link to="/#uploads" className="font-medium text-rose-600 hover:underline">
+                Switch file
+              </Link>
+            </p>
+          )}
         </div>
         {action}
       </div>
