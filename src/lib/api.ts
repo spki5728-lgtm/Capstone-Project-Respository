@@ -1,10 +1,11 @@
 // Browser-side calls to our Netlify Functions. The login cookie is sent automatically.
 import type { Feedback } from "../../netlify/lib/automation/feedback";
+import type { Overview } from "../../netlify/lib/automation/overview";
 import type { Report } from "../../netlify/lib/automation/report";
 import type { Listings, Profile as StoredProfile, Upload, UploadSummary } from "../../netlify/lib/automation/storage";
 import type { Plan } from "../../netlify/lib/automation/usage";
 
-export type { Feedback, Listings, Plan, Report, Upload, UploadSummary };
+export type { Feedback, Listings, Overview, Plan, Report, Upload, UploadSummary };
 export type Profile = StoredProfile & { plan: Plan };
 
 // An API error, with the server's machine-readable code when there is one (e.g. "upgrade_required").
@@ -42,6 +43,10 @@ export function getUpload(id: string): Promise<UploadWithListings> {
 // `listed` maps category name to how many items were listed in the period ("" or 0 clears it).
 export function saveListings(id: string, listed: Record<string, string>): Promise<Listings> {
   return call(`/api/uploads/${id}`, sendJson("PATCH", { listed }), "Couldn't save your listing counts.");
+}
+
+export function getOverview(): Promise<Overview> {
+  return call("/api/overview", undefined, "Couldn't load your all-time sales.");
 }
 
 export function listUploads(): Promise<UploadSummary[]> {

@@ -57,7 +57,7 @@ export async function saveUpload(upload: Upload, sales: Sale[]) {
 
 // The user's upload ids, newest first. Older accounts didn't keep this list, so the first time it's needed
 // it's rebuilt by finding every upload they own.
-async function knownUploadIds(userId: string): Promise<string[]> {
+export async function knownUploadIds(userId: string): Promise<string[]> {
   const profile = await loadProfile(userId);
   if (profile.uploadIndexBuilt) return profile.uploadIds ?? [];
 
