@@ -4,26 +4,38 @@ import { Link, useSearchParams } from "react-router";
 import DepopShopCard from "../components/DepopShopCard";
 import WeeklyRevenueChart from "../components/WeeklyRevenueChart";
 import SellThroughCard from "../components/SellThroughCard";
-import { getUpload, type UploadWithListings } from "../lib/api";
+import UploadPicker, { ALL_UPLOADS } from "../components/UploadPicker";
+import { getOverview, getUpload, listUploads, type Overview, type UploadSummary, type UploadWithListings } from "../lib/api";
 import { formatDate, formatMoney } from "../lib/format";
-import { useProfile } from "../lib/profile";
 
 export default function DashboardPage() {
-  const [searchParams] = useSearchParams();
-  const { profile } = useProfile();
-  const id = searchParams.get("id") ?? profile?.latestUploadId;
+  const [searchParams, setSearchParams] = useSearchParams();
+  // No ?id means the all-time view across every upload.
+  const view = searchParams.get("id") ?? ALL_UPLOADS;
+  const [uploads, setUploads] = useState<UploadSummary[] | null>(null);
   const [upload, setUpload] = useState<UploadWithListings | null>(null);
+  const [overview, setOverview] = useState<Overview | null>(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (!id) return;
-    getUpload(id)
-      .then(setUpload)
-      .catch((err) => setError(err instanceof Error ? err.message : "Couldn't load your sales."));
-  }, [id]);
+    listUploads()
+      .then(setUploads)
+      .catch((err) => setError(err instanceof Error ? err.message : "Couldn't load your uploads."));
+  }, []);
 
-  if (!profile && !id) return <Empty>Loading your sales…</Empty>;
-  if (!id) {
+  useEffect(() => {
+    setError("");
+    setUpload(null);
+    setOverview(null);
+    const load = view === ALL_UPLOADS ? getOverview().then(setOverview) : getUpload(view).then(setUpload);
+    load.catch((err) => setError(err instanceof Error ? err.message : "Couldn't load your sales."));
+  }, [view]);
+
+  function choose(next: string) {
+    setSearchParams(next === ALL_UPLOADS ? {} : { id: next });
+  }
+
+  if (uploads && uploads.length === 0) {
     return (
       <Empty>
         No sales yet. <Link to="/" className="font-medium text-rose-700 underline">Upload your CSV</Link> to
@@ -32,30 +44,39 @@ export default function DashboardPage() {
     );
   }
   if (error) return <Empty>{error}</Empty>;
-  if (!upload) return <Empty>Loading your sales…</Empty>;
+  const metrics = (view === ALL_UPLOADS ? overview : upload)?.metrics;
+  if (!uploads || !metrics) return <Empty>Loading your sales…</Empty>;
 
-  const { metrics } = upload;
   const maxBrandRevenue = Math.max(...metrics.topBrands.map((brand) => brand.revenue), 1);
 
   return (
     <section>
       <DepopShopCard />
-      <div className="mt-8 flex flex-wrap items-end justify-between gap-2">
+      <div className="mt-8 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="text-3xl font-extrabold tracking-tight">Your sales</h2>
+          <h2 className="text-3xl font-extrabold tracking-tight">{upload ? "Your sales" : "All-time sales"}</h2>
           <p className="mt-1 text-sm text-stone-500">
-            {upload.fileName} · {formatDate(metrics.firstSale)} – {formatDate(metrics.lastSale)}
-            {upload.duplicateRows + upload.skippedRows > 0 &&
+            {formatDate(metrics.firstSale)} – {formatDate(metrics.lastSale)}
+            {overview &&
+              ` · ${overview.uploads.length} ${overview.uploads.length === 1 ? "file" : "files"}` +
+                (overview.overlappingSales > 0
+                  ? ` · ${overview.overlappingSales} sales found in more than one file counted once`
+                  : "")}
+            {upload &&
+              upload.duplicateRows + upload.skippedRows > 0 &&
               ` · ignored ${upload.duplicateRows} duplicate and ${upload.skippedRows} unreadable rows`}
             {" · "}
             <Link to="/#uploads" className="font-medium text-rose-600 hover:underline">
-              Switch or delete uploads
+              Manage uploads
             </Link>
           </p>
         </div>
-        <Link to={`/report?id=${upload.id}`} className="btn-primary">
-          Get AI report <ArrowRight size={16} />
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <UploadPicker uploads={uploads} value={view} onChange={choose} includeAll />
+          <Link to={upload ? `/report?id=${upload.id}` : "/report"} className="btn-primary">
+            {upload ? "Get AI report" : "AI reports"} <ArrowRight size={16} />
+          </Link>
+        </div>
       </div>
 
       <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -74,7 +95,13 @@ export default function DashboardPage() {
         <WeeklyRevenueChart weeks={metrics.weekly} />
       </Card>
 
-      <SellThroughCard upload={upload} onSaved={(listings) => setUpload({ ...upload, listings })} />
+      {upload ? (
+        <SellThroughCard upload={upload} onSaved={(listings) => setUpload({ ...upload, listings })} />
+      ) : (
+        <p className="mt-3 text-sm text-stone-500">
+          Pick a single file above to enter listing counts, see its sell-through, and get its AI report.
+        </p>
+      )}
 
       <div className="grid gap-6 md:grid-cols-2">
         <Card title="Top brands by revenue">
